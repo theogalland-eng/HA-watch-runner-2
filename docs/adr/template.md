@@ -2,6 +2,7 @@
 
 - **Status:** Proposed | Accepted | Superseded by `NNNN-title.md` | Deprecated
 - **Date:** YYYY-MM-DD
+- **Revised:** YYYY-MM-DD — what changed (added on the first clarification of an Accepted ADR; a reversal is a new ADR)
 
 ## Context
 

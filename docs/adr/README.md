@@ -23,5 +23,6 @@ that is fine — but write a new ADR that supersedes it rather than silently div
 - Start from [`template.md`](template.md).
 - Status: `Proposed` → `Accepted` → (`Superseded by NNNN` / `Deprecated`).
 - Keep them short. An ADR records context + decision + consequences, not a tutorial.
-- ADRs are immutable once `Accepted`: to change a decision, add a new ADR and mark the old one
-  `Superseded by NNNN`.
+- An `Accepted` ADR is clarified in place: edit the text and add a
+  `**Revised:** YYYY-MM-DD — what changed` line, so readers see what changed and when. To
+  reverse a decision, add a new ADR and mark the old one `Superseded by NNNN`.
