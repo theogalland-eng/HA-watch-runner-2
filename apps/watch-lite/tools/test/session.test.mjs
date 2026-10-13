@@ -494,6 +494,21 @@ test('a background sync that succeeds while the error screen is open returns to 
   assert.equal(S.back(app.se), true, 'one swipe from the list quits');
 });
 
+test('a sync asked before an action but answered after it keeps the confirmed state', () => {
+  const cards = M.DEMO.slice(0, 5);
+  const app = launch(null, (clock) => ({
+    loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards }),
+    sync: (cb) => clock.timers.set(() => cb(null, { fr: 1, cards }), 2000),
+    act: (req, cb) => clock.timers.set(() => cb(null, { k: 0, d: 'light', n: 'Salon', s: 'off' }), 100),
+    close() {},
+  }));
+  S.tapRow(app.se, 0);
+  app.clock.advance(100);
+  assert.equal(app.row(0).state, 'Éteinte');
+  app.clock.advance(1900);
+  assert.equal(app.row(0).state, 'Éteinte', 'the older sync answer does not bring back "Allumée"');
+});
+
 test('stale favorites: the action is dropped without an error and the list resyncs', () => {
   const cards = M.DEMO.slice(0, 5);
   let syncs = 0;

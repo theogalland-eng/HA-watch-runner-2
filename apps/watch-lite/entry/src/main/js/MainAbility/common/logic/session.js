@@ -80,6 +80,7 @@ function sync(se) {
         return;
     }
     se.syncTok += 1;
+    se.syncFrom = se.now();
     var tok = se.syncTok;
     var guard = later(se, TIMEOUT_MS, function () {
         endSync(se, tok, { kind: 'tel' }, null);
@@ -99,11 +100,22 @@ function endSync(se, tok, err, res) {
     if (tok !== se.syncTok || !se.st.syncing) {
         return; // late reply after the 8 s guard
     }
-    if (err) {
-        failSync(se.st, err.kind);
+    if (err || !res) {
+        failSync(se.st, err ? err.kind : 'tel');
     } else {
         var sameFavorites = res.fr === se.st.fr;
+        // Cards refreshed by an action after this sync was asked for are newer than its answer.
+        var newer = [];
+        for (var i = 0; sameFavorites && i < se.st.cards.length; i++) {
+            var at = se.st.updated[se.st.cards[i].k];
+            if (at && at >= se.syncFrom) {
+                newer.push({ card: se.st.cards[i], time: at });
+            }
+        }
         applySync(se.st, res.fr, res.cards, se.now());
+        for (var j = 0; j < newer.length; j++) {
+            applyEntity(se.st, newer[j].card, newer[j].time);
+        }
         se.live = true;
         // A slot may now hold another entity: never leave a detail or an unlock confirmation open on it.
         if ((se.nav === 'detail' || se.nav === 'confirm') && (!sameFavorites || !findCard(se.st, se.nav === 'detail' ? se.det : se.conf))) {
