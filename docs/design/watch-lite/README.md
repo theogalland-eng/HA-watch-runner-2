@@ -301,7 +301,7 @@ Assistant « Joignable » (vert), « Injoignable » (rouge) ou « Inconnu » (gr
 ## Écarts avec la plateforme lite
 
 Rappel des limites (détail dans [platform-constraints.md](../../platform-constraints.md)) : JS
-**ES5.1** sur JerryScript, **~1 Mo de RAM**, page ≤ 48 Ko, HAP ≤ 10 Mo, **PNG décodées en RGBA brut**
+**ES5.1** sur JerryScript, **~1 Mo de RAM**, 48 Ko (mémoire JS ou taille de page, origine à confirmer), HAP ≤ 10 Mo, **PNG décodées en RGBA brut**
 dans le `.bin`, pas de flou, d'ombres ni de dégradés, **pas d'`ArcList`**, routeur sans pile de
 retour, pas d'arrière-plan, état non restauré après redémarrage.
 
@@ -312,7 +312,7 @@ avant de s'appuyer dessus.
 | Dans la maquette | Problème en lite | Alternative |
 |------------------|------------------|-------------|
 | Icônes SVG teintées par `stroke` | Le composant `image` lite n'accepte que PNG et JPG et ne teint pas les images ✓. | Les 26 PNG, une par couleur, fond transparent, générées à partir des tracés ci-dessus. |
-| Icônes PNG 48 px (128 px dans l'app actuelle) | Une PNG coûte largeur × hauteur × 4 octets une fois décodée : 9 216 o en 48 px, 2 304 o en 24 px, 65 536 o pour les 128 px de `common/icons/`. | 48 px maximum, 24 px pour les indicateurs, jamais d'agrandissement par CSS. Les 26 PNG pèsent ≈ 173 Kio décodées. |
+| Icônes PNG 48 px (128 px dans l'app d'origine) | Une PNG coûte largeur × hauteur × 4 octets une fois décodée : 9 216 o en 48 px, 2 304 o en 24 px, 65 536 o pour les 128 px de `common/icons/`. | 48 px maximum, 24 px pour les indicateurs, jamais d'agrandissement par CSS. Les 26 PNG pèsent ≈ 173 Kio décodées. |
 | Écran « off » : lanceur rond de 112 px avec `ic_home` | Simulation du lanceur système, pas un écran de l'app. | Ne pas l'implémenter. L'icône de l'app reste `resources/base/media/icon.png`, affichée par le système. |
 | Police HarmonyOS Sans, graisse Medium en 40 px | Une seule police : `SourceHanSansSC-Regular` ; pas de `font-weight` sur `text` ✓. | 40 px Regular : la hiérarchie tient par la taille et la couleur. |
 | Interlignes 48 / 36 / 30 | `line-height` existe sur `text` depuis l'API 10 ✓ (projet en API 18). | `line-height` + hauteur fixe sur chaque `text` (48, 36 ou 30 px) pour garder le rythme vertical ; rendu à comparer dans DevEco ⚠. |
@@ -327,7 +327,8 @@ avant de s'appuyer dessus.
 | Ombres des planches, repères roses, décalage `translateY` | Outils de présentation du prototype. | Ne pas les reproduire. Aucun flou, ombre ni dégradé sur la montre. |
 | Appui long à 550 ms, clic droit | Seuil fixé par le système, pas de clic droit. | Événement `longpress` (seuil système). |
 | Glisser vers la droite = retour | Routeur sans pile de retour. | `on:swipe` direction `right` → `router.replace` vers la page parente explicite ; depuis la liste, `app.terminate()`. |
-| Confirmation et erreurs en écrans séparés | Chaque page est rechargée à la navigation et pèse au plus 48 Ko. | Blocs `if` / `show` dans la page courante (confirmation dans la liste ou le détail, erreurs dans la liste) : ni page, ni pile en plus. |
+| Confirmation, détail, erreurs et réglages en écrans séparés | `router.replace` détruit la page avec ses minuteries et ses callbacks : une action en cours perdrait son résultat, et chaque retour à la liste rechargerait la page (et la synchro). | **Une seule page** (`pages/index`) : chaque écran est un bloc `if` (pas `show`), seuls les éléments de l'écran visible existent en mémoire. Plan B si la mémoire manque : [README de l'app](../../../apps/watch-lite/README.md#js-memory-main-criterion-and-plan-b). |
+| Boutons contour ≥ 240 px de large (`min-width` + `padding`) | Pas de `min-width` en lite ✓. | Largeur fixe **280 px** (≤ 320) pour tous les boutons contour, 320 pour « Déverrouiller » de la confirmation, 200 pour « Annuler ». Textes traduits gardés courts. |
 | Couronne = défilement et retour | Rotation de la couronne transmise à la `list` ⚠ ; l'appui sur la couronne appartient au système. | Défilement tactile en repli ; retour par glissement uniquement. |
 | Bouton bas = ouvre l'app | Réglage système de l'utilisateur, hors de portée de l'app ⚠. | Le documenter pour l'utilisateur ; rien à coder. |
 | Minuteries 1,5 s, 3 s, 8 s, 10 s | `setTimeout` fonctionne, mais tout s'arrête quand l'app quitte (pas d'arrière-plan). | Annuler les minuteries dans `onDestroy` ; à la reprise, repartir du cache. Une action interrompue n'est pas rejouée automatiquement. **Jamais de `setInterval`** (le lint le refuse). |
@@ -351,6 +352,16 @@ renvoyer (`common/logic/look.js`) :
 | `open` (serrure) | Comme `unlocked` : « Déverrouillée ». |
 
 Une entité indisponible ou en mouvement n'a pas de bouton d'action dans le détail.
+
+Situations que la maquette ne montre pas (`common/logic/session.js` et `view.js`) :
+
+| Situation | Rendu |
+|-----------|-------|
+| Réglages avant toute réponse du téléphone depuis l'ouverture (cache seul) | Téléphone et Home Assistant « Inconnu » en gris. |
+| Synchro sans réponse en 8 s | Comme un téléphone absent : indicateur rouge « Tél. déconnecté », ou écran 5b sans cache. |
+| Réponse à une action après les 8 s | Le retour d'action reste « Échec : délai dépassé ». L'état reçu remplace celui du cache : c'est l'état réel de Home Assistant. |
+| Une resynchro change les favoris (`fr`) alors que le détail ou la confirmation est ouvert | Retour à la liste : l'emplacement peut désigner une autre entité, et une confirmation ne doit jamais déverrouiller une autre serrure. |
+| Action refusée pour favoris périmés (`stale`, protocole v2) | Pas de ligne rouge : le retour d'action est retiré et la liste se resynchronise. |
 
 ### Autres écarts (contrat P2P, contenu)
 

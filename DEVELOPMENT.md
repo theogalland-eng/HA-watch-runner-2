@@ -62,7 +62,8 @@ CI** — verification is currently manual via DevEco Studio:
 - `cd apps/watch-lite/tools && npm ci && npm run verify` runs the ES5 lint, the unit tests of
   `common/logic/`, and the page/icon/lite-CSS/signing checks.
 - The DevEco round previewer/simulator, compared with `docs/design/watch-lite/screens/`, stays
-  manual.
+  manual. So does the JS memory of the lite simulator (non-debug mode, worst case), the main size
+  criterion: see [apps/watch-lite/README.md](apps/watch-lite/README.md#js-memory-main-criterion-and-plan-b).
 
 **Phone companion** (`apps/phone-android/`): headless, with the committed Gradle wrapper — run
 `./gradlew test` (JVM unit tests, incl. the protocol handler against MockWebServer) and

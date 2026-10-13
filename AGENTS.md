@@ -56,7 +56,9 @@ Still to do:
 `npm ci && npm run verify`.
 - **Lint:** ES5 lint (no ES2015+, no `Promise`/`globalThis`/`setInterval`).
 - **Tests:** unit tests of `common/logic/`.
-- **Check:** page ≤ 48 KB, the 26 icons < 1 KB, lite-only CSS/HML, no signing material.
+- **Check:** page without comments ≤ 48 KB (warning from 40 KB), the 26 icons < 1 KB, lite-only
+  CSS/HML, no signing material. The main criterion is the JS memory measured in the DevEco lite
+  simulator ([details](apps/watch-lite/README.md#js-memory-main-criterion-and-plan-b)).
 - **Icons:** `npm run icons` regenerates the 26 icons from the design paths.
 
 ## Repository layout (monorepo)
@@ -124,7 +126,7 @@ apps/
     entry/src/main/resources/   base/ (EN) + ru_RU/ strings, colors, media; profile/main_pages.json
     entry/src/{test,ohosTest}/  local unit + instrumented tests
   watch-lite/     lite-JS — Watch GT (mirror architecture, different runtime)
-    entry/src/main/js/MainAbility/   pages/ + common/ (store, repo, services, utils) + i18n
+    entry/src/main/js/MainAbility/   pages/index (single page) + common/ (logic, repo, config, styles, services, icons) + i18n
   phone-android/  Android companion (Kotlin + Compose, Gradle wrapper committed)
     core/           pure JVM: protocol/, ha/ (REST client), mapping/ (domains), bridge/ (handler, WatchTransport)
     app/            Android: ui/ (Compose), data/ (Keystore token, settings), wear/ (Wear Engine), service/

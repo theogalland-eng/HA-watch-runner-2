@@ -16,25 +16,76 @@ for why GT needs this.
 
 ```
 entry/src/main/
-  config.json                 FA manifest (liteWearable)
+  config.json                 FA manifest (liteWearable), one page
   js/MainAbility/
-    app.js                    app entry (onCreate / onShow)
-    pages/{index,entity,settings,about}/  index.hml + .css + .js
+    app.js                    app entry
+    pages/index/              the only page: every design screen is an `if` block (index.hml + .css + .js)
     common/
-      store.js                shared state (via getApp()/singleton module — NOT globalThis)
-      services/               haRepository.js, p2pClient.js
-      repo/                   MockHomeAssistantRepository.js
-      logic/                  pure ES5 logic, unit-tested with Node: format, look (design rules), store, cache, palette
-      constants/, utils/
-      icons/                  the 26 design icons (generated, see tools/) + legacy icons until PR 3b
-    i18n/                     en-US.json, ru-RU.json
+      logic/                  pure ES5, unit-tested with Node:
+                                session (interaction rules, timers), view (view-models), store (state),
+                                look (design rules per domain), format, palette, cache
+      repo/mockRepository.js  Mock mode: the design's 10 favorites, prototype latencies
+      config/dev.js           Mock switches: 5 / 10 / 0 favorites, network ok / ha / tel, cache
+      styles/base.css         shared styles: type sizes, static colours, buttons
+      services/               haRepository.js, p2pClient.js (PR 3c)
+      icons/                  the 26 design icons (generated, see tools/)
+    i18n/                     fr-FR.json (design labels), en-US.json, ru-RU.json
   resources/                  app icon, strings
 tools/                        headless checks (Node ≥ 22.12): ES5 lint, unit tests, size/lite checks, icon generator
 ```
 
-This **mirrors** the ArkTS app's architecture (store / repository / mock / P2P / 4 pages /
-EN+RU) — same design, reimplemented in lite-JS. The shared contract is
-[../../docs/p2p-protocol.md](../../docs/p2p-protocol.md).
+Same layering as the ArkTS app (state / repository / mock / P2P) and the same
+[P2P contract](../../docs/p2p-protocol.md), reimplemented in lite-JS.
+
+## One page, Mock mode
+
+Lite's router has no back stack: `router.replace` destroys the current page with its timers and
+callbacks. An action started in the detail, or a row "en cours" when Réglages opens, would lose its
+result, and every return to the list would rebuild the page (and resync). So the app has **a
+single page**:
+- each design screen (list, detail, unlock confirmation, errors 5b/5c, no favorite 5d, settings) is
+  an `if` block (not `show`): only the visible screen's elements exist in memory;
+- the rules live in `common/logic/session.js` (no `@system` import, timers injected), the texts and
+  colours of each screen in `common/logic/view.js`; the page only wires them to lite.
+
+**Mock mode** (`common/repo/mockRepository.js`) is used only when Wear Engine is unavailable: the
+DevEco previewer/simulator, or a build without the SDK. In this PR it is always used (the Wear
+Engine repository comes in PR 3c). Edit `common/config/dev.js` and reload the preview to reproduce
+each design screen:
+
+| `dev.js` | Design screen |
+|----------|---------------|
+| `favorites: 5, network: 'ok', cache: true` | 1 dashboard (5a "Synchro…" at launch); tap a row for 2a → 2b |
+| `favorites: 10` | long list variant (scroll 0 / 408 / 816 px) |
+| `network: 'ha'` (with cache) | 2c on a tap; red indicator "HA injoignable", tap it for 5c |
+| `network: 'tel', cache: false` | 5b full screen |
+| `network: 'ha', cache: false` | 5c full screen |
+| `favorites: 0` | 5d "Aucun favori" |
+| tap "Porte d'entrée" / long press a row / Réglages | 3 confirmation / 4a–4c detail / 6 settings |
+
+## JS memory (main criterion) and plan B
+
+`npm run check` measures the page source (without comments), but what counts on the watch is the
+**JS memory at runtime**: the lite simulator shows a limit of 49 144 bytes (48 KB) in non-debug
+mode (origin of the 48 KB: see [platform-constraints.md](../../docs/platform-constraints.md)).
+Measure it in DevEco, lite simulator, **non-debug** mode, in the worst case:
+
+1. `dev.js` with `favorites: 10`;
+2. scroll the list to the bottom;
+3. tap "Porte d'entrée" (unlock confirmation open);
+4. back, long press a row (detail);
+5. back, Réglages.
+
+Note the highest value. Threshold **< 49 144 B**; target **≤ 40 000 B**, to keep room for PR 3c
+(protocol, P2P client, cache).
+
+**Plan B**, if the measured margin is too small in PR 3c (decided on the measured memory, not on the
+source size):
+- move Réglages to its own page (no action starts there);
+- keep the session (actions in flight, timers, P2P receiver) in an application-level module instead
+  of the page. ⚠ To verify first: lite wearables reportedly do not support the `$def` global data,
+  and pass data between pages through storage or files; an application-level module may not be
+  shared between pages either.
 
 ## Design
 
@@ -74,10 +125,16 @@ Tested on Linux (Node 22) and also on Windows (Node 24). The tools work with nat
   - Only `import`/`export` is allowed, since the lite toolchain resolves it.
   - Also forbidden: `globalThis`, `Promise`, `Map`, `Set`, `Symbol`, `Proxy`, `Reflect`, and
     `setInterval` (battery).
-- **`npm test`**: `node:test` on the pure logic in `common/logic/`, the icons (pixels, size,
-  reproducibility) and `config.json`.
+- **`npm test`**: `node:test` on:
+  - the pure logic in `common/logic/`: the interaction rules played with fake timers on the Mock
+    and checked with the real fr-FR texts (one tap = one action, 1.5 s / 3 s / 8 s / 10 s, retry,
+    back gesture, late replies, favorites revision);
+  - the i18n files (same keys and placeholders in the three languages);
+  - the icons (pixels, size, reproducibility) and `config.json`.
 - **`npm run check`**:
-  - each page (hml + css + js + local imports) ≤ 48 KB;
+  - each page (hml + css + js + local imports) **without comments**: warning above 40 KB (and above
+    44 KB, the plan B threshold), error above 48 KB. The raw size and the size without comments or
+    indentation are printed too. Comments never reach the watch: the lite toolchain compiles the page;
   - the 26 icons, each < 1 KB;
   - decoded RGBA and estimated HAP size;
   - only lite CSS properties/selectors and HML components/events (no `gap`, `box-sizing`,
@@ -90,7 +147,7 @@ remain manual.
 
 ## Hard limits (lite wearable)
 
-HAP ≤ 10 MB · page ≤ 48 KB · ~1 MB RAM · no background · router has no back-stack · state not
+HAP ≤ 10 MB · 48 KB (JS memory or page size, origin to confirm) · ~1 MB RAM · no background · router has no back-stack · state not
 restored after restart · images decoded to raw RGBA (keep icons tiny). Full list:
 [platform-constraints.md](../../docs/platform-constraints.md).
 
@@ -127,10 +184,12 @@ GT has no "HDC debugging" / "Debug via Wi-Fi", so install goes **through the pho
 
 ## Gotchas
 
-- **ES5.1 only.** Share state via `getApp().data` / a singleton module — `globalThis` throws
-  `ReferenceError` on JerryScript.
+- **ES5.1 only.** `globalThis` throws `ReferenceError` on JerryScript. The single page needs no
+  state shared between pages.
 - **Watch has no internet.** All network goes through the phone companion over Wear Engine P2P
-  (`common/services/p2pClient.js`); `haRepository.js` is currently a mock.
+  (`common/services/p2pClient.js`, PR 3c). Until then the app runs on the Mock.
+- **Timers.** Only `setTimeout`, all cleared in `onDestroy`; no `setInterval` (the lint refuses it).
+  "il y a 3 min" is recomputed on each redraw, not by a timer.
 - **Icons bloat.** A PNG is decoded to raw RGBA in the `.bin`: a large PNG can blow the 10 MB HAP
   limit. The design icons are 48 or 24 px, generated by `tools/` (never resized in CSS).
 - **Text spacing.** Lite `text` defaults to `letter-spacing: 2px`: set `0px` explicitly.

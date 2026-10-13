@@ -83,10 +83,23 @@ lite framework) — but that runtime is behind the wall, with no door for third-
 
 If a lite-JS client is built for GT, these constraints apply:
 
-- HAP ≤ 10 MB; page ≤ 48 KB; ~1 MB RAM; no background; router has no back-stack; state not
-  restored after restart.
+- HAP ≤ 10 MB; ~1 MB RAM; no background; router has no back-stack; state not restored after
+  restart.
+- **48 KB: origin to confirm (page size or JS memory).** This repo first read it as a per-page source
+  size limit. One unofficial source (a 2022 HarmonyOS lite-wearable tutorial, found by a web search
+  and not opened from here: [developer.aliyun.com/article/1059616](https://developer.aliyun.com/article/1059616))
+  describes it as the **JS memory limit at runtime**: 49 144 bytes, shown by the lite simulator.
+  Debug mode lifts the limit and shows only the current use, because the debugger takes memory.
+  The same search reports that lite wearables do not support the `$def` global data: pages share
+  data through storage or files. How we measure:
+  - `npm run check` (`apps/watch-lite/tools/`) measures the page source **without comments**
+    (comments never reach the watch). It warns above 40 KB and fails above 48 KB;
+  - the main criterion is the JS memory of the lite simulator, **in non-debug mode**, in the worst
+    case. The scenario is in [apps/watch-lite/README.md](../apps/watch-lite/README.md#js-memory-main-criterion-and-plan-b).
+    The limit is < 49 144 B and the target ≤ 40 000 B.
 - Images are decoded to raw RGBA → keep icons tiny (a few PNGs, no large graphics).
-- ES5.1 only — share state via a `getApp().data` / singleton module, **not** `globalThis`.
+- ES5.1 only, **no** `globalThis`. The lite app keeps a single page, so it shares no state between
+  pages (`$def` reportedly unsupported, see above).
 - No watch-side internet → all network goes through the phone companion over Wear Engine P2P.
 - Text: a single font (SourceHanSansSC-Regular, no weights), and `letter-spacing` defaults to
   **2 px**, so set it to 0 explicitly.
