@@ -120,7 +120,9 @@ test('failure: red row with its cause for 3 s, red indicator, then the cached st
   S.tapRow(app.se, 1);
   app.clock.advance(1300);
   assert.deepEqual(app.row(1), { k: 1, name: 'Cuisine', icon: '/common/icons/ic_fail_err.png', state: 'Échec : HA injoignable', color: C.err, check: '' });
-  app.clock.advance(3000);
+  app.clock.advance(2999);
+  assert.equal(app.row(1).state, 'Échec : HA injoignable', 'still red before 3 s');
+  app.clock.advance(1);
   assert.equal(app.row(1).state, 'Éteinte');
   assert.equal(app.row(1).icon, '/common/icons/ic_light_off.png');
 
@@ -159,11 +161,19 @@ test('unlocking goes through the confirmation (auto-cancelled after 10 s); locki
   S.tapRow(app.se, 3);
   assert.equal(app.view().screen, 'confirm');
   assert.equal(app.view().confirmName, 'Porte d’entrée');
-  app.clock.advance(10000);
+  app.clock.advance(9999);
+  assert.equal(app.view().screen, 'confirm', 'still open before 10 s');
+  app.clock.advance(1);
   assert.equal(app.view().screen, 'list');
   assert.equal(app.acts.length, 0, 'nothing is sent without "Déverrouiller"');
 
   S.tapRow(app.se, 3);
+  S.confirmYes(app.se);
+  app.clock.advance(S.CONFIRM_GUARD_MS - 1);
+  S.confirmYes(app.se);
+  assert.equal(app.view().screen, 'confirm', 'a double tap cannot skip the confirmation');
+  assert.equal(app.acts.length, 0);
+  app.clock.advance(1);
   S.confirmYes(app.se);
   assert.equal(app.view().screen, 'list', 'back to where it came from');
   assert.deepEqual(app.acts[0], { k: 3, fr: 1, confirm: true });
@@ -176,6 +186,48 @@ test('unlocking goes through the confirmation (auto-cancelled after 10 s); locki
   assert.equal(app.view().screen, 'list', 'locking needs no confirmation');
   assert.deepEqual(app.acts[1], { k: 4, fr: 1, confirm: false });
   assert.equal(app.row(4).state, 'Verrouillage…');
+});
+
+test('the 10 s auto-cancel never fires once the confirmation is closed (Annuler, Déverrouiller, swipe)', () => {
+  const app = launch({ ...DASH, favorites: 10 });
+  app.clock.advance(1500);
+  const settingsAfter10s = (close) => {
+    S.tapRow(app.se, 3);
+    app.clock.advance(S.CONFIRM_GUARD_MS);
+    close();
+    S.openSettings(app.se);
+    app.clock.advance(10000);
+    assert.equal(app.view().screen, 'settings', 'no late jump back to the list');
+    S.back(app.se);
+  };
+  settingsAfter10s(() => S.confirmNo(app.se));
+  settingsAfter10s(() => S.back(app.se));
+  settingsAfter10s(() => S.confirmYes(app.se));
+  assert.equal(app.acts.length, 1);
+});
+
+test('taps reach only the visible screen: a click after a long press does not act, a stray tap keeps one confirmation', () => {
+  const app = launch(DASH);
+  app.clock.advance(1500);
+  S.longPressRow(app.se, 0);
+  S.tapRow(app.se, 0);
+  assert.equal(app.view().screen, 'detail');
+  assert.equal(app.acts.length, 0, 'the long-pressed light is not toggled');
+  S.tapStatus(app.se);
+  S.openSettings(app.se);
+  assert.equal(app.view().screen, 'detail', 'list-only taps are ignored outside the list');
+  S.back(app.se);
+
+  S.tapRow(app.se, 3);
+  S.tapRow(app.se, 3);
+  S.confirmNo(app.se);
+  S.openSettings(app.se);
+  app.clock.advance(10000);
+  assert.equal(app.view().screen, 'settings', 'no second 10 s timer was left behind');
+
+  S.back(app.se);
+  S.tapDetailButton(app.se);
+  assert.equal(app.acts.length, 0, 'the detail button only works on the detail');
 });
 
 test('the Mock refuses an unlock that skipped the confirmation, like the companion', () => {
@@ -231,6 +283,7 @@ test('detail: name, big state, last update, one button in the target colour, gre
   S.confirmNo(app.se);
   assert.equal(app.view().screen, 'detail', 'cancel returns to the detail');
   S.tapDetailButton(app.se);
+  app.clock.advance(S.CONFIRM_GUARD_MS);
   S.confirmYes(app.se);
   assert.equal(app.view().screen, 'detail');
   assert.equal(app.view().detail.state, 'Déverrouillage…');
@@ -381,6 +434,64 @@ test('a resync that changes the favorites closes a confirmation or detail on tha
   assert.equal(app.clock.pending(), 0, 'the 10 s confirmation timer is gone');
   S.confirmYes(app.se);
   assert.equal(app.acts.length, 0);
+
+  fr = 3;
+  S.tapStatus(app.se);
+  S.longPressRow(app.se, 3);
+  assert.equal(app.view().detail.name, 'Autre', 'detail opened while the resync runs');
+  app.clock.advance(1500);
+  assert.equal(app.view().screen, 'list', 'the detail closes too');
+});
+
+test('an action reply never overwrites a slot after the favorites changed (B1: never unlock the wrong lock)', () => {
+  let fr = 1;
+  let reply = null;
+  const garage = [{ k: 3, d: 'lock', n: 'Garage', s: 'unlocked' }];
+  const porte = [{ k: 3, d: 'lock', n: 'Porte d’entrée', s: 'locked' }];
+  const app = launch(null, (clock) => ({
+    loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards: garage }),
+    sync: (cb) => clock.timers.set(() => cb(null, { fr, cards: fr === 1 ? garage : porte }), 100),
+    act: (req, cb) => { reply = cb; },
+    close() {},
+  }));
+  app.clock.advance(100);
+  S.tapRow(app.se, 3);
+  assert.deepEqual(app.acts[0], { k: 3, fr: 1, confirm: false }, 'locking the Garage');
+  fr = 2;
+  S.tapStatus(app.se);
+  app.clock.advance(100);
+  assert.equal(app.row(3).name, 'Porte d’entrée');
+  reply(null, { k: 3, d: 'lock', n: 'Garage', s: 'locked' });
+  assert.equal(app.row(3).name, 'Porte d’entrée', 'the old reply is dropped');
+  assert.equal(app.row(3).state, 'Verrouillée');
+  S.tapRow(app.se, 3);
+  assert.equal(app.view().confirmName, 'Porte d’entrée', 'the confirmation names the lock that will open');
+  app.clock.advance(S.CONFIRM_GUARD_MS);
+  S.confirmYes(app.se);
+  assert.deepEqual(app.acts[1], { k: 3, fr: 2, confirm: true });
+  reply(null, { k: 4, d: 'light', n: 'Ailleurs', s: 'on' });
+  assert.equal(app.row(3).name, 'Porte d’entrée', 'a reply for another slot is ignored');
+});
+
+test('a background sync that succeeds while the error screen is open returns to the list', () => {
+  const cards = M.DEMO.slice(0, 5);
+  let syncs = 0;
+  const app = launch(null, (clock) => ({
+    loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards }),
+    sync: (cb) => {
+      syncs += 1;
+      clock.timers.set(() => (syncs === 1 ? cb({ kind: 'ha' }) : cb(null, { fr: 1, cards })), 100);
+    },
+    act: (req, cb) => clock.timers.set(() => cb({ kind: 'stale' }), 500),
+    close() {},
+  }));
+  app.clock.advance(100);
+  S.tapRow(app.se, 0);
+  S.tapStatus(app.se);
+  assert.equal(app.view().screen, 'error');
+  app.clock.advance(600);
+  assert.equal(app.view().screen, 'list');
+  assert.equal(S.back(app.se), true, 'one swipe from the list quits');
 });
 
 test('stale favorites: the action is dropped without an error and the list resyncs', () => {
@@ -408,6 +519,20 @@ test('leaving the page clears every timer and ignores late replies', () => {
   assert.ok(app.clock.pending() > 0);
   S.destroy(app.se);
   assert.equal(app.clock.pending(), 0);
+
+  let reply = null;
+  const late = launch(null, (clock) => ({
+    loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards: M.DEMO.slice(0, 5) }),
+    sync: (cb) => cb(null, { fr: 1, cards: M.DEMO.slice(0, 5) }),
+    act: (req, cb) => { reply = cb; },
+    close() {},
+  }));
+  S.tapRow(late.se, 0);
+  S.destroy(late.se);
+  const draws = late.draws();
+  reply(null, { k: 0, d: 'light', n: 'Salon', s: 'off' });
+  assert.equal(late.draws(), draws, 'no redraw after the page is gone');
+  assert.equal(late.se.st.cards[0].s, 'on', 'and no state change');
 });
 
 test('fr-FR, en-US and ru-RU have the same keys and placeholders, none empty', () => {

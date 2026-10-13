@@ -65,11 +65,16 @@ export default {
         var v = buildView(session, function (key) {
             return self.$t('strings.' + key);
         }, now(), version);
-        this.isList = v.screen === 'list';
-        this.isMessage = v.screen === 'error' || v.screen === 'empty';
-        this.isDetail = v.screen === 'detail';
-        this.isConfirm = v.screen === 'confirm';
-        this.isSettings = v.screen === 'settings';
+        var show = {
+            isList: v.screen === 'list',
+            isMessage: v.screen === 'error' || v.screen === 'empty',
+            isDetail: v.screen === 'detail',
+            isConfirm: v.screen === 'confirm',
+            isSettings: v.screen === 'settings'
+        };
+        var flag;
+        // Data first, then hide the leaving screen, then show the entering one: two screens never
+        // coexist and a screen is never built with stale data (memory peak on ~1 MB).
         if (v.status) {
             this.status = v.status;
             this.rows = v.rows;
@@ -85,6 +90,16 @@ export default {
         }
         if (v.settings) {
             this.settings = v.settings;
+        }
+        for (flag in show) {
+            if (show.hasOwnProperty(flag) && !show[flag] && this[flag]) {
+                this[flag] = false;
+            }
+        }
+        for (flag in show) {
+            if (show.hasOwnProperty(flag) && show[flag] && !this[flag]) {
+                this[flag] = true;
+            }
         }
     },
 

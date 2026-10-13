@@ -20,3 +20,9 @@ test('lite HML: unknown components and touch events are caught', () => {
   assert.ok(p.some((x) => x.includes('<span>')));
   assert.ok(!p.some((x) => x.includes('<svg>')));
 });
+
+test('lite CSS: the rule right after an @import is checked too', () => {
+  const p = cssProblems("@import '../../common/styles/base.css';\n\n.root { gap: 4px; }\n.b { gap: 2px; }");
+  assert.equal(p.filter((x) => x.includes('"gap"')).length, 2);
+  assert.deepEqual(cssProblems("@import 'base.css';\n.root { width: 466px; }"), []);
+});

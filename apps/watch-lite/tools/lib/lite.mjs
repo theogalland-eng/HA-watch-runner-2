@@ -24,7 +24,8 @@ export const HML_EVENTS = new Set(['click', 'longpress', 'swipe', 'scrollend', '
  */
 export function cssProblems(text) {
   const problems = [];
-  const css = text.replace(/\/\*[\s\S]*?\*\//g, '');
+  // @import statements have no block: drop them, or they would glue onto the next selector.
+  const css = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@import[^;]*;/g, '');
   for (const block of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const selector = block[1].trim();
     if (selector.startsWith('@')) continue;

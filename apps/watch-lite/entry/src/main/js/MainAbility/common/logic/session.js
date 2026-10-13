@@ -18,6 +18,9 @@ export var TIMEOUT_MS = 8000;
 export var OK_MS = 1500;
 export var FAIL_MS = 3000;
 export var CONFIRM_MS = 10000;
+/** "Déverrouiller" ignores taps this soon after the confirmation opened: a double tap on the row or
+ *  the detail button, which overlaps it on screen, never skips the confirmation. */
+export var CONFIRM_GUARD_MS = 500;
 
 function noop() {}
 
@@ -27,7 +30,7 @@ function noop() {}
  */
 export function createSession(repo, timers, now, onChange) {
     return {
-        st: createState(), nav: 'dash', det: -1, conf: -1, ret: 'dash', confTimer: 0,
+        st: createState(), nav: 'dash', det: -1, conf: -1, ret: 'dash', confTimer: 0, confAt: 0,
         live: false, // a sync succeeded since the app opened (settings: "Connecté", "Joignable")
         repo: repo, timers: timers, now: now, onChange: onChange || noop,
         timerIds: {}, syncTok: 0, dead: false
@@ -67,32 +70,32 @@ export function open(se) {
         if (cache && se.st.fr === null) {
             applySync(se.st, cache.fr, cache.cards, cache.syncedAt);
         }
-        sync(se, null);
+        sync(se);
     });
 }
 
-/** Starts a sync unless one is running; `done(ok)` runs after it. */
-function sync(se, done) {
+/** Starts a sync unless one is running. */
+function sync(se) {
     if (!startSync(se.st)) {
         return;
     }
     se.syncTok += 1;
     var tok = se.syncTok;
     var guard = later(se, TIMEOUT_MS, function () {
-        endSync(se, tok, { kind: 'tel' }, null, done);
+        endSync(se, tok, { kind: 'tel' }, null);
     });
     se.repo.sync(function (err, res) {
         if (se.dead) {
             return;
         }
         cancel(se, guard);
-        endSync(se, tok, err, res, done);
+        endSync(se, tok, err, res);
         se.onChange();
     });
     se.onChange();
 }
 
-function endSync(se, tok, err, res, done) {
+function endSync(se, tok, err, res) {
     if (tok !== se.syncTok || !se.st.syncing) {
         return; // late reply after the 8 s guard
     }
@@ -107,15 +110,16 @@ function endSync(se, tok, err, res, done) {
             cancel(se, se.confTimer);
             se.nav = 'dash';
         }
-    }
-    if (done) {
-        done(!err);
+        // "Réessayer" leaves the error screen on success, and so does any other sync that works.
+        if (se.nav === 'error') {
+            se.nav = 'dash';
+        }
     }
 }
 
 /** Tap on the sync indicator: resync; when red, open the matching error screen. Ignored while syncing. */
 export function tapStatus(se) {
-    if (se.st.syncing) {
+    if (se.nav !== 'dash' || se.st.syncing) {
         return;
     }
     if (se.st.statusErr) {
@@ -123,21 +127,21 @@ export function tapStatus(se) {
         se.onChange();
         return;
     }
-    sync(se, null);
+    sync(se);
 }
 
-/** "Réessayer" / "Resynchroniser": syncs in place; a successful retry leaves the error screen. */
+/** "Réessayer" / "Resynchroniser": syncs in place; a successful sync leaves the error screen. */
 export function retry(se) {
-    sync(se, function (ok) {
-        if (ok && se.nav === 'error') {
-            se.nav = 'dash';
-        }
-    });
+    sync(se);
 }
 
+/**
+ * Taps on the list. Like every entry point, it only acts on the screen it belongs to: a click that
+ * lite might deliver after a long press, or a stray tap during a screen change, does nothing.
+ */
 export function tapRow(se, k) {
     var card = findCard(se.st, k);
-    if (!card || isPending(se, k)) {
+    if (se.nav !== 'dash' || !card || isPending(se, k)) {
         return;
     }
     var what = tapAction(card);
@@ -152,7 +156,7 @@ export function tapRow(se, k) {
 
 /** Long press (or tap on a sensor): the detail screen. */
 export function longPressRow(se, k) {
-    if (findCard(se.st, k)) {
+    if (se.nav === 'dash' && findCard(se.st, k)) {
         se.nav = 'detail';
         se.det = k;
         se.onChange();
@@ -162,7 +166,7 @@ export function longPressRow(se, k) {
 /** The detail's single button; greyed and ignored while the action runs. */
 export function tapDetailButton(se) {
     var card = findCard(se.st, se.det);
-    if (!card || isPending(se, card.k) || !detailButton(card)) {
+    if (se.nav !== 'detail' || !card || isPending(se, card.k) || !detailButton(card)) {
         return;
     }
     if (tapAction(card) === 'confirm') {
@@ -173,11 +177,15 @@ export function tapDetailButton(se) {
 }
 
 function askConfirm(se, k, ret) {
+    cancel(se, se.confTimer);
     se.nav = 'confirm';
     se.conf = k;
     se.ret = ret;
+    se.confAt = se.now();
     se.confTimer = later(se, CONFIRM_MS, function () {
-        closeConfirm(se);
+        if (se.nav === 'confirm') {
+            closeConfirm(se);
+        }
     });
     se.onChange();
 }
@@ -189,7 +197,7 @@ function closeConfirm(se) {
 }
 
 export function confirmYes(se) {
-    if (se.nav !== 'confirm') {
+    if (se.nav !== 'confirm' || se.now() - se.confAt < CONFIRM_GUARD_MS) {
         return;
     }
     var card = findCard(se.st, se.conf);
@@ -208,8 +216,10 @@ export function confirmNo(se) {
 }
 
 export function openSettings(se) {
-    se.nav = 'settings';
-    se.onChange();
+    if (se.nav === 'dash') {
+        se.nav = 'settings';
+        se.onChange();
+    }
 }
 
 /** Swipe right. Returns true when the app should quit (back from the list). */
@@ -228,6 +238,7 @@ export function back(se) {
 /** One tap = one action. Success needs Home Assistant's answer: no optimistic state. */
 function run(se, k, confirmed) {
     var card = findCard(se.st, k);
+    var fr = se.st.fr;
     var to = targetOf(card.d, card.s);
     var tok = startAction(se.st, k, to);
     if (!tok) {
@@ -236,7 +247,7 @@ function run(se, k, confirmed) {
     var guard = later(se, TIMEOUT_MS, function () {
         fail(se, k, tok, 'timeout');
     });
-    se.repo.act({ k: k, fr: se.st.fr, confirm: confirmed }, function (err, fresh) {
+    se.repo.act({ k: k, fr: fr, confirm: confirmed }, function (err, fresh) {
         if (se.dead) {
             return;
         }
@@ -244,15 +255,18 @@ function run(se, k, confirmed) {
         if (err && err.kind === 'stale') {
             // The phone's favorites changed: drop the feedback and resync (v2 protocol).
             if (clearPhase(se.st, k, tok)) {
-                sync(se, null);
+                sync(se);
             }
         } else if (err) {
             fail(se, k, tok, err.kind);
         } else {
-            if (fresh) {
-                applyEntity(se.st, fresh, se.now());
+            // The reply describes slot k of revision fr. After a resync to other favorites the slot
+            // may hold another entity: drop it rather than show (and later confirm) a wrong name.
+            var mine = fresh && fresh.k === k && se.st.fr === fr ? fresh : null;
+            if (mine) {
+                applyEntity(se.st, mine, se.now()); // HA's truth, even after the 8 s timeout
             }
-            if (actionSucceeded(se.st, k, tok, fresh ? fresh.s : to)) {
+            if (actionSucceeded(se.st, k, tok, mine ? mine.s : to)) {
                 later(se, OK_MS, function () {
                     clearPhase(se.st, k, tok);
                 });
