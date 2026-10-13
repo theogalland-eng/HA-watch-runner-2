@@ -37,6 +37,7 @@ test('first launch without data: list (syncing), then error screens or the empty
   S.failSync(st, 'tel');
   assert.equal(S.screenOf(st), 'error_tel', 'no cache: full-screen error 5b');
   assert.equal(S.startSync(st), true);
+  assert.equal(S.screenOf(st), 'error_tel', '"Réessayer" runs in place: the error screen stays');
   S.failSync(st, 'ha');
   assert.equal(S.screenOf(st), 'error_ha');
   S.applySync(st, 7, [], 1000);
@@ -132,4 +133,25 @@ test('single-entity refresh replaces the matching slot only', () => {
   assert.equal(S.findCard(st, 1).s, 'on');
   assert.equal(S.applyEntity(st, { k: 8, d: 'light', n: 'X', s: 'on' }), false);
   assert.equal(S.applyEntity(st, { k: 1 }), false);
+});
+
+test('a reply after the action settled (8 s timeout) changes no feedback', () => {
+  const st = S.createState();
+  S.applySync(st, 1, FIVE, 1000);
+  const tok = S.startAction(st, 0, 'off');
+  assert.equal(S.actionFailed(st, 0, tok, 'timeout'), true);
+  assert.equal(S.actionSucceeded(st, 0, tok, 'off'), false);
+  assert.equal(S.actionFailed(st, 0, tok, 'ha'), false);
+  assert.equal(st.ents[0].err, 'timeout');
+  assert.equal(st.statusErr, null);
+});
+
+test('"Mis à jour": a refreshed card has its own time, else the last sync', () => {
+  const st = S.createState();
+  S.applySync(st, 1, FIVE, 1000);
+  S.applyEntity(st, { k: 1, d: 'light', n: 'Cuisine', s: 'on' }, 5000);
+  assert.equal(S.cardAt(st, 1), 5000);
+  assert.equal(S.cardAt(st, 0), 1000);
+  S.applySync(st, 1, FIVE, 9000);
+  assert.equal(S.cardAt(st, 1), 9000, 'a full sync is newer');
 });

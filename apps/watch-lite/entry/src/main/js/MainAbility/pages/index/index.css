@@ -1,93 +1,44 @@
-.container {
-  width: 100%;
-  height: 100%;
-}
+@import '../../common/styles/base.css';
 
-.list {
-  width: 100%;
-  height: 100%;
-}
+/* Layout of the screens (docs/design/watch-lite/README.md § Cercle 466 × 466 et marges). Lists
+   start/end with empty items (48 / 150 px, settings 60 / 150): list padding may not scroll on lite. */
 
-.titleItem {
-  width: 100%;
-  height: 160px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
+.root { width: 466px; height: 466px; background-color: #000000; flex-direction: column; }
 
-.titleText {
-  width: 100%;
-  text-align: center;
-  font-size: 32px;
-  color: #EDE5E2;
-}
+.gap48 { width: 466px; height: 48px; }
+.gap60 { width: 466px; height: 60px; }
+.gap150 { width: 466px; height: 150px; }
 
-.row {
-  width: 100%;
-  height: 100px;
-  margin-bottom: 12px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-}
+/* Sync indicator: 340 × 44, icon 24 + 8 + text 24, centred. */
+.status-item { width: 466px; height: 44px; }
+.status-row { width: 340px; height: 44px; margin-left: 63px; flex-direction: row; justify-content: center; align-items: center; }
+.status-text { margin-left: 8px; }
 
-.card {
-  width: 94%;
-  padding-left: 16px;
-  padding-right: 16px;
-  border-radius: 104px;
-  background-color: #1F1F1F;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
+/* Favorite row: 340 × 96, icon zone 48, gap 16, name 30/36 + state 24/30 on 276 px. */
+.row-item { width: 466px; height: 96px; }
+.row { width: 340px; height: 96px; margin-left: 63px; flex-direction: row; align-items: center; }
+.row-texts { width: 276px; height: 66px; margin-left: 16px; flex-direction: column; }
+.row-text { width: 276px; text-overflow: ellipsis; }
+.state-line { width: 276px; height: 30px; flex-direction: row; align-items: center; }
+.check { margin-right: 6px; }
+.state-narrow { width: 246px; text-overflow: ellipsis; }
 
-.iconCircle {
-  width: 64px;
-  height: 64px;
-  border-radius: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+/* Settings row: 340 × 80, last row of the list. */
+.settings-item { width: 466px; height: 80px; }
+.settings-row { width: 340px; height: 80px; margin-left: 63px; flex-direction: row; align-items: center; }
+.settings-label { width: 276px; margin-left: 16px; }
 
-.settingsCircle {
-  background-color: #5A5A5A;
-}
+/* Detail (padding top 76) and unlock confirmation (padding top 64). */
+.column { flex-direction: column; align-items: center; }
+.top76 { margin-top: 76px; }
+.top64 { margin-top: 64px; }
+.read-only { margin-top: 41px; }
+.confirm-btn { width: 320px; height: 84px; margin-top: 22px; border-width: 3px; border-color: #FF8A3D; border-radius: 42px; justify-content: center; align-items: center; }
+.cancel-btn { width: 200px; height: 64px; margin-top: 6px; justify-content: center; align-items: center; }
+.cancel-text { width: 200px; text-align: center; }
 
-.iconImg {
-  width: 34px;
-  height: 34px;
-}
-
-.texts {
-  width: 64%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  margin-left: 16px;
-  margin-right: 16px;
-}
-
-.name {
-  font-size: 24px;    /* was 22 */
-  color: #EDE5E2;
-}
-
-.state {
-  margin-top: 6px;
-  font-size: 18px;
-  color: #9AA0A6;
-}
-
-.chevron {
-  font-size: 38px;
-  color: #9AA0A6;
-}
-
-.bottomSpace {
-  height: 160px;
-}
+/* Settings (screen 6): label 24/30 over value 30/36, 16 px between blocks. */
+.set-title { width: 466px; height: 52px; flex-direction: column; align-items: center; }
+.set-block { width: 466px; height: 82px; flex-direction: column; align-items: center; }
+.set-btn { width: 466px; height: 84px; flex-direction: column; align-items: center; }
+.set-btn-top { margin-top: 4px; }

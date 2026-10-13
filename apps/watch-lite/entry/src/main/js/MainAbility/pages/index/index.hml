@@ -1,39 +1,108 @@
-<div class="container" on:swipe="onSwipe">
-    <list class="list" scrollpage="true">
-        <list-item class="titleItem">
-            <text class="titleText">{{ $t('strings.home_title') }}</text>
-        </list-item>
+<!-- The app's only page: each design screen is an `if` block, so only the visible screen exists in
+     memory and an action in flight survives screen changes. Swipe right = back. -->
+<div class="root" on:swipe="onSwipe">
 
-        <list-item for="{{items}}" class="row">
-            <div class="card" on:click="openEntity($item)">
-                <div class="iconCircle" style="background-color: {{$item.color}};">
-                    <image class="iconImg" src="{{$item.iconSrc}}"></image>
-                </div>
-
-                <div class="texts">
-                    <text class="name">{{$item.name}}</text>
-                    <text class="state">{{$item.state}}</text>
-                </div>
-
-                <text class="chevron">›</text>
+    <!-- 1 / 2 / 5a · Dashboard: sync indicator, favorites, Réglages. -->
+    <list if="{{isList}}" class="full">
+        <list-item class="gap48"></list-item>
+        <list-item class="status-item" on:click="onStatus">
+            <div class="status-row">
+                <image class="ic24" src="{{status.icon}}"></image>
+                <text class="t24 status-text" style="color: {{status.color}};">{{status.text}}</text>
             </div>
         </list-item>
-
-        <list-item class="row" on:click="openSettings">
-            <div class="card">
-                <div class="iconCircle settingsCircle">
-                    <image class="iconImg" src="/common/icons/settings.png"></image>
+        <list-item for="{{rows}}" class="row-item" on:click="onRow($item.k)" on:longpress="onRowLong($item.k)">
+            <div class="row">
+                <image class="ic48" src="{{$item.icon}}"></image>
+                <div class="row-texts">
+                    <text class="t30 c-txt row-text">{{$item.name}}</text>
+                    <div if="{{$item.check}}" class="state-line">
+                        <image class="ic24 check" src="{{$item.check}}"></image>
+                        <text class="t24 state-narrow" style="color: {{$item.color}};">{{$item.state}}</text>
+                    </div>
+                    <text else class="t24 row-text" style="color: {{$item.color}};">{{$item.state}}</text>
                 </div>
-
-                <div class="texts">
-                    <text class="name">{{ $t('strings.index_settings_label') }}</text>
-                    <text class="state">{{ $t('strings.index_settings_description') }}</text>
-                </div>
-
-                <text class="chevron">›</text>
             </div>
         </list-item>
+        <list-item class="settings-item" on:click="onSettings">
+            <div class="settings-row">
+                <image class="ic48" src="/common/icons/ic_settings_sub.png"></image>
+                <text class="t30 c-sub settings-label">{{ $t('strings.settings') }}</text>
+            </div>
+        </list-item>
+        <list-item class="gap150"></list-item>
+    </list>
 
-        <list-item class="bottomSpace"></list-item>
+    <!-- 5b / 5c · Phone or Home Assistant unreachable, 5d · No favorite. -->
+    <div if="{{isMessage}}" class="full center">
+        <image class="ic48" src="{{message.icon}}"></image>
+        <text class="t30 c-txt w320 mt12">{{message.t1}}</text>
+        <text if="{{message.t2}}" class="t30 c-txt w320">{{message.t2}}</text>
+        <text class="t24 c-sub w320 mt8">{{message.b1}}</text>
+        <text class="t24 c-sub w320">{{message.b2}}</text>
+        <div class="btn btn-act mt24" on:click="onSync">
+            <text class="t30 c-act btn-text">{{message.btn}}</text>
+        </div>
+    </div>
+
+    <!-- 4a / 4b / 4c · Detail: name, state, last update, one action in the target state's colour. -->
+    <div if="{{isDetail}}" class="full column">
+        <image class="ic48 top76" src="{{detail.icon}}"></image>
+        <text class="t30 c-txt w340 mt12">{{detail.name}}</text>
+        <text class="t40 w340" style="color: {{detail.color}};">{{detail.state}}</text>
+        <text class="t24 w340" style="color: {{detail.metaColor}};">{{detail.meta}}</text>
+        <div if="{{detail.hasButton}}" class="mt24" style="opacity: {{detail.btnOpacity}};" on:click="onDetailButton">
+            <div class="btn" style="border-color: {{detail.btnBorder}};">
+                <text class="t30 btn-text" style="color: {{detail.btnColor}};">{{detail.btnText}}</text>
+            </div>
+        </div>
+        <text if="{{detail.readOnly}}" class="t24 c-off w340 read-only">{{ $t('strings.read_only') }}</text>
+    </div>
+
+    <!-- 3 · Unlock confirmation (cancelled after 10 s). -->
+    <div if="{{isConfirm}}" class="full column">
+        <image class="ic48 top64" src="/common/icons/ic_unlock_unlock.png"></image>
+        <text class="t40 c-txt w340 mt12">{{ $t('strings.confirm_title') }}</text>
+        <text class="t30 c-sub w320">{{confirmName}}</text>
+        <div class="confirm-btn" on:click="onConfirmYes">
+            <text class="t30 c-unlock btn-text">{{ $t('strings.btn_unlock') }}</text>
+        </div>
+        <div class="cancel-btn" on:click="onConfirmNo">
+            <text class="t30 c-txt cancel-text">{{ $t('strings.cancel') }}</text>
+        </div>
+    </div>
+
+    <!-- 6 · Settings / About. -->
+    <list if="{{isSettings}}" class="full">
+        <list-item class="gap60"></list-item>
+        <list-item class="set-title">
+            <text class="t30 c-txt w340">{{ $t('strings.settings') }}</text>
+        </list-item>
+        <list-item class="set-block">
+            <text class="t24 c-sub w340">{{ $t('strings.phone') }}</text>
+            <text class="t30 w340" style="color: {{settings.phoneColor}};">{{settings.phone}}</text>
+        </list-item>
+        <list-item class="set-block">
+            <text class="t24 c-sub w340">{{ $t('strings.ha_name') }}</text>
+            <text class="t30 w340" style="color: {{settings.haColor}};">{{settings.ha}}</text>
+        </list-item>
+        <list-item class="set-btn" on:click="onSync">
+            <div class="btn btn-act set-btn-top">
+                <text class="t30 c-act btn-text">{{settings.btn}}</text>
+            </div>
+        </list-item>
+        <list-item class="set-block">
+            <text class="t24 c-sub w340">{{ $t('strings.last_sync') }}</text>
+            <text class="t30 c-txt w340">{{settings.last}}</text>
+        </list-item>
+        <list-item class="set-block">
+            <text class="t24 c-sub w340">{{ $t('strings.favorites') }}</text>
+            <text class="t30 c-txt w340">{{settings.fav}}</text>
+        </list-item>
+        <list-item class="set-block">
+            <text class="t24 c-sub w340">{{ $t('strings.version') }}</text>
+            <text class="t30 c-txt w340">{{settings.version}}</text>
+        </list-item>
+        <list-item class="gap150"></list-item>
     </list>
 </div>

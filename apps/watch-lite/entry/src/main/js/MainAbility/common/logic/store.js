@@ -16,6 +16,7 @@ export function createState() {
         syncing: false,
         statusErr: null, // null | 'tel' | 'ha': drives the red indicator and the error screens
         ents: {}, // k → { phase: null|'pending'|'ok'|'fail', to, err, tok }
+        updated: {}, // k → ms timestamp of a single-entity refresh newer than lastSyncAt
         tok: 0 // action token counter: a late callback for an old action is ignored
     };
 }
@@ -87,6 +88,7 @@ export function applySync(state, fr, cards, now) {
     state.lastSyncAt = now;
     state.syncing = false;
     state.statusErr = null;
+    state.updated = {};
     var kept = {};
     if (sameFavorites) {
         for (var i = 0; i < state.cards.length; i++) {
@@ -105,8 +107,8 @@ export function failSync(state, kind) {
     state.statusErr = kind === 'ha' ? 'ha' : 'tel';
 }
 
-/** Replaces one card after a single-entity refresh. Returns false if the slot is unknown. */
-export function applyEntity(state, card) {
+/** Replaces one card after a single-entity refresh received at `now`. False if the slot is unknown. */
+export function applyEntity(state, card, now) {
     var c = normalizeCard(card);
     if (!c) {
         return false;
@@ -114,6 +116,9 @@ export function applyEntity(state, card) {
     for (var i = 0; i < state.cards.length; i++) {
         if (state.cards[i].k === c.k) {
             state.cards[i] = c;
+            if (now) {
+                state.updated[c.k] = now;
+            }
             return true;
         }
     }
@@ -143,9 +148,15 @@ function current(state, k, tok) {
     return ent && ent.tok === tok ? ent : null;
 }
 
-/** Confirmed by Home Assistant: new state (if known) + check mark. False if the token is stale. */
-export function actionSucceeded(state, k, tok, newState) {
+/** The row's action is still waiting: a reply after the 8 s timeout changes no feedback. */
+function waiting(state, k, tok) {
     var ent = current(state, k, tok);
+    return ent && ent.phase === 'pending' ? ent : null;
+}
+
+/** Confirmed by Home Assistant: new state (if known) + check mark. False if stale or already settled. */
+export function actionSucceeded(state, k, tok, newState) {
+    var ent = waiting(state, k, tok);
     if (!ent) {
         return false;
     }
@@ -162,7 +173,7 @@ export function actionSucceeded(state, k, tok, newState) {
 
 /** Failure: red row; 'tel'/'ha' also turn the indicator red ('timeout' leaves it unchanged). */
 export function actionFailed(state, k, tok, kind) {
-    var ent = current(state, k, tok);
+    var ent = waiting(state, k, tok);
     if (!ent) {
         return false;
     }
@@ -173,6 +184,11 @@ export function actionFailed(state, k, tok, kind) {
         state.statusErr = kind;
     }
     return true;
+}
+
+/** When the watch last received this card ("Mis à jour il y a …" in the detail). */
+export function cardAt(state, k) {
+    return state.updated[k] || state.lastSyncAt;
 }
 
 /** End of the 1.5 s success / 3 s failure display: the row shows its cached state again. */
@@ -189,12 +205,13 @@ export function clearPhase(state, k, tok) {
  * Which full screen the dashboard shows:
  * - 'list'  favorites (with the sync indicator, even while the first sync runs);
  * - 'empty' synced, but no favorite chosen on the phone (5d);
- * - 'error_tel' / 'error_ha' no data at all and the sync failed (5b / 5c). With data, errors stay
- *   discreet (red indicator).
+ * - 'error_tel' / 'error_ha' no data at all and the sync failed (5b / 5c), also while "Réessayer"
+ *   runs (the design keeps the error screen until a sync succeeds). With data, errors stay discreet
+ *   (red indicator).
  */
 export function screenOf(state) {
     if (!hasData(state)) {
-        if (!state.syncing && state.statusErr) {
+        if (state.statusErr) {
             return state.statusErr === 'ha' ? 'error_ha' : 'error_tel';
         }
         return 'list';

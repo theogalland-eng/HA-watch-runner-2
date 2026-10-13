@@ -1,88 +1,120 @@
-import router from '@system.router';
+// The app's only page. Rules live in common/logic/session.js and view-models in view.js (both
+// unit-tested); this file wires them to lite: timers, $t, the router-less back gesture.
+// Mock mode for now (PR 3b); the Wear Engine repository replaces it when the SDK is present (PR 3c).
 import app from '@system.app';
-import getStore from '../../common/store.js';
+import { createSession, open, tapStatus, tapRow, longPressRow, tapDetailButton, confirmYes, confirmNo,
+    retry, openSettings, back, destroy } from '../../common/logic/session.js';
+import { buildView } from '../../common/logic/view.js';
+import { createMockRepository } from '../../common/repo/mockRepository.js';
+import { DEV } from '../../common/config/dev.js';
 
-function ensureStore() {
-    var s = getStore();
-    if (!s.statesById) {
-        s.statesById = {};
+var session = null;
+var version = '';
+
+var timers = {
+    set: function (fn, ms) {
+        return setTimeout(fn, ms);
+    },
+    clear: function (id) {
+        clearTimeout(id);
     }
-    return s;
+};
+
+function now() {
+    return Date.now();
 }
 
 export default {
     data: {
-        items: []
+        isList: false,
+        isMessage: false,
+        isDetail: false,
+        isConfirm: false,
+        isSettings: false,
+        status: { icon: '', text: '', color: '' },
+        rows: [],
+        message: { icon: '', t1: '', t2: '', b1: '', b2: '', btn: '' },
+        detail: { icon: '', name: '', state: '', color: '', meta: '', metaColor: '', hasButton: false, btnText: '', btnColor: '', btnBorder: '', btnOpacity: 1, readOnly: false },
+        confirmName: '',
+        settings: { phone: '', phoneColor: '', ha: '', haColor: '', btn: '', last: '', fav: '', version: '' }
     },
 
     onInit: function () {
-        ensureStore();
-
-        // твои моки
-        this.items = [
-            { id: 'light.1',  name: 'Light 1',  state: 'on',  iconSrc: '/common/icons/light.png',  color: '#F2C94C' },
-            { id: 'light.2',  name: 'Light 2',  state: 'off', iconSrc: '/common/icons/light.png',  color: '#F2C94C' },
-            { id: 'lock.3',   name: 'Lock 3',   state: 'locked', iconSrc: '/common/icons/lock.png', color: '#8E44AD' },
-            { id: 'switch.4', name: 'Switch 4', state: 'off', iconSrc: '/common/icons/switch.png', color: '#27AE60' }
-        ];
-
-        this._applyStoreStates();
+        var self = this;
+        var info = app.getInfo();
+        version = info && info.versionName ? String(info.versionName) : '';
+        session = createSession(createMockRepository(DEV, timers, now), timers, now, function () {
+            self.paint();
+        });
+        open(session);
+        this.paint();
     },
 
-    // ВАЖНО: на Lite это срабатывает при возврате через replace/back
-    onShow: function () {
-        this._applyStoreStates();
-    },
-
-    _applyStoreStates: function () {
-        var store = ensureStore();
-        var map = store.statesById || {};
-
-        // Обновляем state у items из store (без изменения структуры)
-        for (var i = 0; i < this.items.length; i++) {
-            var id = this.items[i].id;
-            if (map[id] !== undefined) {
-                this.items[i].state = map[id];
-            }
+    onDestroy: function () {
+        if (session) {
+            destroy(session);
+            session = null;
         }
-
-        // Иногда Lite не перерисовывает после мутации элементов массива.
-        // Поэтому меняем ссылку на массив, чтобы гарантировать ререндер:
-        this.items = this.items.slice(0);
     },
 
-    openEntity: function (item) {
-        var store = ensureStore();
-        var saved = store.statesById[item.id];
-
-        // то, что entity экран читает
-        store.navEntity = {
-            entityId: item.id,
-            name: item.name,
-            state: saved !== undefined ? saved : item.state,
-            iconSrc: item.iconSrc
-        };
-
-        router.replace({ uri: 'pages/entity/index' });
+    paint: function () {
+        var self = this;
+        if (!session) {
+            return;
+        }
+        var v = buildView(session, function (key) {
+            return self.$t('strings.' + key);
+        }, now(), version);
+        this.isList = v.screen === 'list';
+        this.isMessage = v.screen === 'error' || v.screen === 'empty';
+        this.isDetail = v.screen === 'detail';
+        this.isConfirm = v.screen === 'confirm';
+        this.isSettings = v.screen === 'settings';
+        if (v.status) {
+            this.status = v.status;
+            this.rows = v.rows;
+        }
+        if (v.message) {
+            this.message = v.message;
+        }
+        if (v.detail) {
+            this.detail = v.detail;
+        }
+        if (v.confirmName !== null) {
+            this.confirmName = v.confirmName;
+        }
+        if (v.settings) {
+            this.settings = v.settings;
+        }
     },
 
-    onSwipe: function (event) {
-        if (!event || !event.direction) return;
-
-        // вправо — закрыть
-        if (event.direction === 'right') {
+    onStatus: function () {
+        tapStatus(session);
+    },
+    onRow: function (k) {
+        tapRow(session, k);
+    },
+    onRowLong: function (k) {
+        longPressRow(session, k);
+    },
+    onSettings: function () {
+        openSettings(session);
+    },
+    onSync: function () {
+        retry(session);
+    },
+    onDetailButton: function () {
+        tapDetailButton(session);
+    },
+    onConfirmYes: function () {
+        confirmYes(session);
+    },
+    onConfirmNo: function () {
+        confirmNo(session);
+    },
+    onSwipe: function (e) {
+        if (e && e.direction === 'right' && back(session)) {
             app.terminate();
-            return;
         }
-
-        // вниз — refresh
-        if (event.direction === 'down') {
-            this.refresh();
-            return;
-        }
-    },
-
-    openSettings: function () {
-        router.replace({ uri: 'pages/settings/index' });
     }
 };

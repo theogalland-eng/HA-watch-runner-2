@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 // Static checks for the lite watch app, runnable without DevEco:
-//  1. each page (hml + css + js + imported local modules) ≤ 48 KB;
+//  1. each page (hml + css + js + imported local modules), without comments, ≤ 48 KB (warning
+//     from 40 KB); raw and comment- and indentation-free sizes are shown too;
 //  2. icons: exactly the 26 design icons, each < 1 KB; every PNG's decoded RGBA cost;
 //  3. HAP estimate (sources + decoded images) ≤ 10 MB;
 //  4. CSS / HML restricted to what lite supports (properties, selectors, components, events);
 //  5. no signing material in build-profile.json5 (it must never be committed).
-// Limits: docs/platform-constraints.md; lite subset: OpenHarmony arkui-js-lite reference.
+// Limits: docs/platform-constraints.md (the origin of the 48 KB is to be confirmed: page size or
+// JS memory; the JS memory of the lite simulator is measured in DevEco, see README § Plan B).
+// Lite subset: OpenHarmony arkui-js-lite reference.
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ICONS, MAX_ICON_BYTES } from './icons/spec.mjs';
 import { pngSize } from './lib/png.mjs';
 import { cssProblems, hmlProblems } from './lib/lite.mjs';
+import { sourceSizes } from './lib/size.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP = resolve(here, '..');
@@ -20,10 +24,9 @@ const MEDIA = join(APP, 'entry/src/main/resources');
 
 const KB = 1024;
 const PAGE_LIMIT = 48 * KB;
+const PAGE_WARN = 40 * KB;
+const PLAN_B = 44 * KB;
 const HAP_LIMIT = 10 * KB * KB;
-
-/** Pre-design icons still used by the old pages; removed with them in PR 3b (then this list is empty). */
-const LEGACY_ICONS = ['light.png', 'lock.png', 'logo_mono.png', 'power.png', 'sensor.png', 'settings.png', 'switch.png', 'unknown.png'];
 
 const errors = [];
 const warnings = [];
@@ -53,14 +56,22 @@ function localImports(file, seen) {
 
 const config = JSON.parse(readFileSync(join(APP, 'entry/src/main/config.json'), 'utf8'));
 const pages = config.module.js[0].pages;
-console.log('Pages (hml + css + js + local imports, limit 48 KB):');
+console.log('Pages (hml + css + js + local imports; limits on the size without comments: warning 40 KB, error 48 KB):');
 for (const page of pages) {
   const seen = new Set();
   for (const ext of ['.hml', '.css', '.js']) localImports(join(JS_ROOT, page + ext), seen);
-  const total = [...seen].reduce((n, f) => n + statSync(f).size, 0);
-  const ok = total <= PAGE_LIMIT;
-  if (!ok) errors.push(`${page}: ${fmt(total)} > 48 KB`);
-  console.log(`  ${ok ? 'ok ' : 'BAD'} ${page.padEnd(24)} ${fmt(total).padStart(9)}  (${seen.size} files)`);
+  const size = { raw: 0, code: 0, tight: 0 };
+  for (const f of seen) {
+    const s = sourceSizes(readFileSync(f, 'utf8'), extname(f));
+    size.raw += s.raw;
+    size.code += s.code;
+    size.tight += s.tight;
+  }
+  const ok = size.code <= PAGE_LIMIT;
+  if (!ok) errors.push(`${page}: ${fmt(size.code)} without comments > 48 KB`);
+  else if (size.code > PLAN_B) warnings.push(`${page}: ${fmt(size.code)} without comments > 44 KB (plan B threshold): measure the JS memory in DevEco (README § Plan B)`);
+  else if (size.code > PAGE_WARN) warnings.push(`${page}: ${fmt(size.code)} without comments > 40 KB`);
+  console.log(`  ${ok ? 'ok ' : 'BAD'} ${page.padEnd(20)} ${fmt(size.code).padStart(8)} without comments · ${fmt(size.raw)} raw · ${fmt(size.tight)} without comments or indentation  (${seen.size} files)`);
 }
 
 // ---- 2. Icons + decoded image cost ------------------------------------------------------------
@@ -74,8 +85,6 @@ for (const f of present) {
   iconBytes += size;
   if (expected.has(f)) {
     if (size >= MAX_ICON_BYTES) errors.push(`icon ${f} is ${size} B (must be < 1 KB)`);
-  } else if (LEGACY_ICONS.includes(f)) {
-    warnings.push(`legacy icon ${f} (${fmt(size)}) still used by the pre-design pages; removed in PR 3b`);
   } else {
     errors.push(`unexpected icon ${f}: icons come from tools/icons/spec.mjs`);
   }
