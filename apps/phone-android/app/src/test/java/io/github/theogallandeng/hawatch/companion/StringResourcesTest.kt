@@ -37,12 +37,4 @@ class StringResourcesTest {
             }
         }
     }
-
-    @Test
-    fun `action labels sent to the watch stay short`() {
-        for (locale in listOf("values", "values-fr", "values-ru")) {
-            strings(locale).filterKeys { it.startsWith("action_turn") || it == "action_toggle" || it.endsWith("lock") }
-                .forEach { (key, label) -> assertTrue("$locale/$key too long: $label", label.length <= 14) }
-        }
-    }
 }

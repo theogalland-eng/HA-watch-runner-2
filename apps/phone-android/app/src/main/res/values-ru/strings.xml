@@ -2,12 +2,6 @@
 <resources>
     <string name="app_name">HA Watch Companion</string>
 
-    <string name="action_turn_on">Включить</string>
-    <string name="action_turn_off">Выключить</string>
-    <string name="action_toggle">Переключить</string>
-    <string name="action_lock">Запереть</string>
-    <string name="action_unlock">Отпереть</string>
-
     <string name="section_ha">Home Assistant</string>
     <string name="field_url">Адрес сервера</string>
     <string name="field_url_hint">https://example.duckdns.org:8123</string>

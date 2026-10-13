@@ -8,13 +8,14 @@ Watch (lite-JS on GT Runner 2) ──Wear Engine P2P──▶ this app ──HA 
 
 The watch has no network access of its own. This app does three things:
 - holds the Home Assistant URL and the token, encrypted;
-- answers the watch's requests using the [P2P contract v1](../../docs/p2p-protocol.md);
+- answers the watch's requests using the [compact P2P contract v2](../../docs/p2p-protocol.md)
+  ([ADR-0008](../../docs/adr/0008-p2p-protocol-v2-compact.md)), every message ≤ 900 bytes;
 - calls the HA REST API, **only when the watch asks**.
 
 Design decisions: [ADR-0007](../../docs/adr/0007-android-companion-on-demand.md).
 
 Stack: Kotlin, Jetpack Compose (Material 3), OkHttp, kotlinx.serialization, and the Huawei Wear
-Engine SDK `com.huawei.hms:wearengine:5.0.3.300`. minSdk 26, targetSdk 35. Reference phone:
+Engine SDK `com.huawei.hms:wearengine:5.0.3.304`. minSdk 26, targetSdk 35. Reference phone:
 Redmi Note 13 Pro+ (HyperOS).
 
 ## Identifiers
@@ -25,21 +26,17 @@ Redmi Note 13 Pro+ (HyperOS).
 | Watch app bundle (lite, GT Runner 2) | `io.github.theogallandeng.hawatch` | `watchPeerPkg` (Gradle property) |
 | Watch app signing fingerprint | **placeholder** | `watchPeerFingerprint` (Gradle property) |
 
-> **Phase 3 to-do (watch side, not done yet).** `apps/watch-lite/entry/src/main/config.json`
-> still uses the upstream bundle `ru.gentslava.homeassistant`. It needs two changes:
-> - set `bundleName` to `io.github.theogallandeng.hawatch`;
-> - declare this companion in `supportLists`: package `io.github.theogallandeng.hawatch.companion`
->   plus the SHA-256 fingerprint of the phone signing key.
->
-> Until then the two sides do not recognize each other.
+The watch side declares this companion in `supportLists`
+([apps/watch-lite/README.md](../watch-lite/README.md#identifiers)). Until `watchPeerFingerprint`
+holds the watch app's fingerprint, the two sides do not recognize each other.
 
 ## Layout
 
 ```
 core/   pure Kotlin/JVM, unit-tested without Android
-  protocol/   EntityCard, EntityAction, v1 messages, ProtocolCodec (tolerant decoding, compact encoding)
+  protocol/   v2 messages, Card {k,d,n,s}, CardCodes (code tables, size limits, favorites revision), ProtocolCodec
   ha/         HaClient + OkHttpHaClient (GET /api/, /api/states, /api/states/<id>, POST /api/services/…)
-  mapping/    EntityCardMapper + DomainMapper per domain (light, switch, lock) ← add new domains here
+  mapping/    EntityCardMapper + DomainMapper per domain (light, switch, lock): card + service choice ← add new domains here
   bridge/     WatchTransport (interface), WatchRequestHandler (protocol core), CompanionBridge
   config/     CompanionSettings, HaInput (URL/token validation)
 app/    Android
@@ -50,28 +47,31 @@ app/    Android
 ```
 
 Adding an HA domain (e.g. `cover`, `fan`):
-1. Add a `DomainMapper` to `EntityCardMapper.DEFAULT_MAPPERS`, with its `allowedServices`.
-2. Add any labels it needs (EN/FR/RU).
+1. Add a `DomainMapper` to `EntityCardMapper.DEFAULT_MAPPERS`; its `serviceFor(state, confirmed)`
+   picks the service.
+2. Give it a domain code (and any new state codes) in `CardCodes` **and** in the tables of
+   [p2p-protocol.md](../../docs/p2p-protocol.md#domain-codes-d); `CardCodesTest` checks they match.
 3. Add tests.
 
-The watch side only needs an icon or colour for the new domain.
+The watch side needs the same codes in `protocol.js`, plus an icon and colour for the new domain.
 
 ## Battery model
 
 | When | Phone | Watch traffic |
 |------|-------|---------------|
 | Idle (most of the time) | Foreground service with the Wear Engine receiver registered. **No wakelock, no timer, no network.** | none |
-| Watch app opens | `SYNC_REQUEST` → one `GET /api/states/<id>` per favorite (≤ 10, 4 in parallel) | 1 short reply |
-| Action on the watch | `CALL_SERVICE` → one `POST`; then the watch's `SYNC_ENTITY_REQUEST` → one `GET` | 2 short replies |
+| Watch app opens | `SYNC_REQUEST` → one `GET /api/states/<id>` per favorite (≤ 10, 4 in parallel) | 1 reply ≤ 900 bytes |
+| Action on the watch | `CALL_SERVICE` → one `GET`, one `POST`, then while the state settles one `GET` every 500 ms for 5 s at most (this action only) | 1 reply with the new card |
 | Favorites screen opened on the phone | one `GET /api/states` | none |
 
 Other properties:
 - No WebSocket and no polling.
 - Replies leave in under 6.5 s (the watch gives up at 8 s). A slow sync returns partial data:
   favorites that time out or fail individually are left out. See
-  [p2p-protocol.md](../../docs/p2p-protocol.md#companion-behaviour-v1-clarifications).
+  [p2p-protocol.md](../../docs/p2p-protocol.md#sync_request--sync_response).
 - Idle HTTPS sockets are closed after 60 s.
-- A `SYNC_RESPONSE` for 10 favorites stays under 3 KB (checked by a unit test).
+- Every message stays ≤ 900 bytes, the worst case included (Wear Engine's limit is 1 KB; checked and
+  printed by `ProtocolCodecTest`).
 
 ## Security model
 
@@ -81,8 +81,9 @@ Other properties:
 - **Token in transit.** It only goes into the `Authorization` header, over **HTTPS** (`http://` URLs
   are refused). There is no HTTP logging. Errors sent to the watch never contain the token or the URL.
 - **Backups.** App data is excluded from cloud backup and from device transfer.
-- **What the watch can do.** It can only read and control the favorites, with the allowed services
-  of each domain. For example `lock.open` is never exposed. Only `entity_id` is forwarded to HA.
+- **What the watch can do.** It can only read and act on the favorites, by slot. The companion
+  picks the service from the current state. Unlocking requires the watch's confirmation
+  (`act: "confirm"`), and `lock.open` is never used. Only `entity_id` is forwarded to HA.
 - **Never commit:** `local.properties`, `keystore.properties`, `*.jks`, `*.keystore` (git-ignored).
 
 ## Build
@@ -189,9 +190,9 @@ The app's **HyperOS / MIUI** section has buttons that open both apps' settings p
   - `15`: Huawei Health is not allowed to autostart.
   - `16`: the watch is not connected.
   - `206`: the message could not be delivered.
-- **The watch gets `HA unreachable` or `HA timeout`.** Check that the phone has network access and
-  that HA is online.
-- **The watch gets `HA returned 401`.** The token was revoked: replace it in the app.
+- **The watch gets `code: "ha"`.** Check that the phone has network access and that HA is online.
+- **The watch gets `code: "auth"`.** The token was revoked: replace it in the app.
+- **The watch gets `code: "stale"`.** The favorites changed on the phone; the watch resyncs on its own.
 
 ## Known limits
 

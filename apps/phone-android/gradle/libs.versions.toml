@@ -9,7 +9,7 @@ activityCompose = "1.9.3"
 lifecycle = "2.8.7"
 coreKtx = "1.15.0"
 junit = "4.13.2"
-wearengine = "5.0.3.300"
+wearengine = "5.0.3.304"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }

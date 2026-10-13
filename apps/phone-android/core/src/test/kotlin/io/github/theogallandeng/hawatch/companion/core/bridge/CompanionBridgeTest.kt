@@ -7,6 +7,7 @@ import io.github.theogallandeng.hawatch.companion.core.config.CompanionSettings
 import io.github.theogallandeng.hawatch.companion.core.haState
 import io.github.theogallandeng.hawatch.companion.core.ha.HaClientFactory
 import io.github.theogallandeng.hawatch.companion.core.mapping.EntityCardMapper
+import io.github.theogallandeng.hawatch.companion.core.protocol.CardCodes
 import io.github.theogallandeng.hawatch.companion.core.protocol.ProtocolCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,10 +37,13 @@ class CompanionBridgeTest {
         delays = mapOf("lock.front_door" to 300L),
     )
 
+    private val favorites = listOf("light.kitchen", "lock.front_door")
+    private val fr = CardCodes.favoritesRevision(favorites)
+
     private val bridge = CompanionBridge(
         transport = transport,
         handler = WatchRequestHandler(
-            config = { CompanionSettings("https://ha.example.org", TEST_TOKEN, listOf("light.kitchen", "lock.front_door")) },
+            config = { CompanionSettings("https://ha.example.org", TEST_TOKEN, favorites) },
             clientFactory = HaClientFactory { _, _ -> ha },
             mapper = EntityCardMapper(),
         ),
@@ -62,20 +66,20 @@ class CompanionBridgeTest {
     fun `a watch request is answered to the same peer with the same id`() {
         bridge.start()
         val peer = FakeWatchTransport.Peer("gt-runner-2")
-        transport.receive("""{"v":1,"id":"get_card-1","type":"SYNC_ENTITY_REQUEST","entity_id":"light.kitchen"}""", peer)
+        transport.receive("""{"v":2,"id":"sync-1","type":"SYNC_REQUEST"}""", peer)
         awaitReplies(1)
 
         val (to, payload) = transport.sent.single()
         assertEquals(peer, to)
-        assertTrue(payload.contains("\"type\":\"SYNC_ENTITY_RESPONSE\""))
-        assertEquals(listOf("get_card-1"), replyIds())
+        assertTrue(payload.contains("\"type\":\"SYNC_RESPONSE\""))
+        assertEquals(listOf("sync-1"), replyIds())
     }
 
     @Test
     fun `replies may go out of order, each correlated by id`() {
         bridge.start()
-        transport.receive("""{"v":1,"id":"slow","type":"SYNC_ENTITY_REQUEST","entity_id":"lock.front_door"}""")
-        transport.receive("""{"v":1,"id":"fast","type":"SYNC_ENTITY_REQUEST","entity_id":"light.kitchen"}""")
+        transport.receive("""{"v":2,"id":"slow","type":"SYNC_REQUEST"}""") // waits for the slow lock
+        transport.receive("""{"v":2,"id":"fast","type":"CALL_SERVICE","k":0,"fr":$fr}""")
         awaitReplies(2)
         assertEquals(listOf("fast", "slow"), replyIds())
     }
@@ -83,9 +87,9 @@ class CompanionBridgeTest {
     @Test
     fun `an action reaches Home Assistant and is acknowledged`() {
         bridge.start()
-        transport.receive("""{"v":1,"id":"svc-1","type":"CALL_SERVICE","domain":"light","service":"turn_on","data":{"entity_id":"light.kitchen"}}""")
+        transport.receive("""{"v":2,"id":"svc-1","type":"CALL_SERVICE","k":0,"fr":$fr}""")
         awaitReplies(1)
-        assertEquals("""{"v":1,"id":"svc-1","type":"ACK","ok":true}""", transport.sent.single().second)
+        assertEquals("""{"v":2,"id":"svc-1","type":"ACK","ok":true,"c":{"k":0,"d":"l","n":"Kitchen","s":"1"}}""", transport.sent.single().second)
         assertEquals(Triple("light", "turn_on", mapOf("entity_id" to "light.kitchen")), ha.calls.single())
     }
 

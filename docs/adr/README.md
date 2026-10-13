@@ -17,6 +17,7 @@ that is fine — but write a new ADR that supersedes it rather than silently div
 | [0005](0005-target-full-wearable-not-lite.md) | Target full wearable (Watch 4/5/Ultimate), not lite wearable (GT) | Accepted |
 | [0006](0006-monorepo-structure.md) | Monorepo for the watch apps and companion | Accepted |
 | [0007](0007-android-companion-on-demand.md) | Android companion: Kotlin stack, on-demand bridge, favorites only | Accepted |
+| [0008](0008-p2p-protocol-v2-compact.md) | Compact P2P protocol v2: slots, one-letter codes, favorites revision | Accepted |
 
 ## Conventions
 

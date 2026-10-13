@@ -50,11 +50,15 @@ class FakeWatchTransport : WatchTransport {
     }
 }
 
-/** Scriptable HA, for tests that need precise timing without a socket. */
+/**
+ * Scriptable HA, for tests that need precise timing without a socket. A service call applies its
+ * obvious effect (turn_on → on, unlock → unlocked…) and reports the changed state, like HA does.
+ */
 class FakeHaClient(
-    private val states: Map<String, HaState> = emptyMap(),
+    states: Map<String, HaState> = emptyMap(),
     private val delays: Map<String, Long> = emptyMap(),
 ) : HaClient {
+    private val states = java.util.concurrent.ConcurrentHashMap(states)
     val calls = CopyOnWriteArrayList<Triple<String, String, Map<String, String>>>()
 
     override suspend fun checkApi() = Unit
@@ -66,7 +70,15 @@ class FakeHaClient(
         return states[entityId] ?: throw HaException.NotFound()
     }
 
-    override suspend fun callService(domain: String, service: String, data: Map<String, String>) {
+    override suspend fun callService(domain: String, service: String, data: Map<String, String>): List<HaState> {
         calls += Triple(domain, service, data)
+        val id = data["entity_id"] ?: return emptyList()
+        val old = states[id] ?: return emptyList()
+        val new = EFFECTS[service] ?: return emptyList()
+        return listOf(old.copy(state = new).also { states[id] = it })
+    }
+
+    private companion object {
+        val EFFECTS = mapOf("turn_on" to "on", "turn_off" to "off", "lock" to "locked", "unlock" to "unlocked")
     }
 }
