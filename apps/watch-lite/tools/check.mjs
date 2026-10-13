@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Static checks for the lite watch app, runnable without DevEco:
-//  1. each page (hml + css + js + imported local modules), without comments, ≤ 48 KB (warning
-//     from 40 KB); raw and comment- and indentation-free sizes are shown too;
+//  1. each page (hml + css + js + imported local modules): size without comments, with warnings
+//     from 40 KB, 44 KB (plan B) and 48 KB (to be confirmed on the watch); raw and comment- and
+//     indentation-free sizes are shown too, and the share of the Wear Engine stub (demo only);
 //  2. icons: exactly the 26 design icons, each < 1 KB; every PNG's decoded RGBA cost;
 //  3. HAP estimate (sources + decoded images) ≤ 10 MB;
 //  4. CSS / HML restricted to what lite supports (properties, selectors, components, events);
 //  5. no signing material in build-profile.json5 (it must never be committed).
-// Limits: docs/platform-constraints.md (the origin of the 48 KB is to be confirmed: page size or
-// JS memory; the JS memory of the lite simulator is measured in DevEco, see README § Plan B).
+// Limits: docs/platform-constraints.md. The 48 KB is not enforced by the DevEco Previewer (an 84.8 KB
+// compiled page loads): it is a warning until the watch test decides (README § Watch test).
 // Lite subset: OpenHarmony arkui-js-lite reference.
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve, extname } from 'node:path';
@@ -42,21 +43,23 @@ function walk(dir, out = []) {
 }
 
 // ---- 1. Page sizes -------------------------------------------------------------------------
-function localImports(file, seen) {
-  if (seen.has(file) || !existsSync(file)) return;
+const STUB = join(JS_ROOT, 'common/services/wearengine.js');
+
+function localImports(file, seen, skip) {
+  if (seen.has(file) || file === skip || !existsSync(file)) return;
   seen.add(file);
   const src = readFileSync(file, 'utf8');
   const re = extname(file) === '.css' ? /@import\s+['"]([^'"]+)['"]/g : /import\s+(?:[^'"]*?from\s+)?['"](\.{1,2}\/[^'"]+)['"]/g;
   for (const m of src.matchAll(re)) {
     let target = resolve(dirname(file), m[1]);
     if (!extname(target)) target += extname(file) === '.css' ? '.css' : '.js';
-    localImports(target, seen);
+    localImports(target, seen, skip);
   }
 }
 
 const config = JSON.parse(readFileSync(join(APP, 'entry/src/main/config.json'), 'utf8'));
 const pages = config.module.js[0].pages;
-console.log('Pages (hml + css + js + local imports; limits on the size without comments: warning 40 KB, error 48 KB):');
+console.log('Pages (hml + css + js + local imports; warnings on the size without comments: 40 KB, 44 KB plan B, 48 KB to confirm on the watch):');
 for (const page of pages) {
   const seen = new Set();
   for (const ext of ['.hml', '.css', '.js']) localImports(join(JS_ROOT, page + ext), seen);
@@ -68,10 +71,19 @@ for (const page of pages) {
     size.tight += s.tight;
   }
   const ok = size.code <= PAGE_LIMIT;
-  if (!ok) errors.push(`${page}: ${fmt(size.code)} without comments > 48 KB`);
-  else if (size.code > PLAN_B) warnings.push(`${page}: ${fmt(size.code)} without comments > 44 KB (plan B threshold): measure the JS memory in DevEco (README § Plan B)`);
+  if (!ok) warnings.push(`${page}: ${fmt(size.code)} without comments > 48 KB: to be confirmed on the watch, not enforced by the Previewer (README § Watch test)`);
+  else if (size.code > PLAN_B) warnings.push(`${page}: ${fmt(size.code)} without comments > 44 KB (plan B threshold): the watch test decides (README § Watch test)`);
   else if (size.code > PAGE_WARN) warnings.push(`${page}: ${fmt(size.code)} without comments > 40 KB`);
-  console.log(`  ${ok ? 'ok ' : 'BAD'} ${page.padEnd(20)} ${fmt(size.code).padStart(8)} without comments · ${fmt(size.raw)} raw · ${fmt(size.tight)} without comments or indentation  (${seen.size} files)`);
+  console.log(`  ${ok ? 'ok ' : 'big'} ${page.padEnd(20)} ${fmt(size.code).padStart(8)} without comments · ${fmt(size.raw)} raw · ${fmt(size.tight)} without comments or indentation  (${seen.size} files)`);
+  const app = new Set();
+  for (const ext of ['.hml', '.css', '.js']) localImports(join(JS_ROOT, page + ext), app, STUB);
+  const stub = [...seen].filter((f) => !app.has(f));
+  if (stub.length) {
+    const code = stub.reduce((n, f) => n + sourceSizes(readFileSync(f, 'utf8'), extname(f)).code, 0);
+    const demo = readFileSync(STUB, 'utf8').includes('P2pClient.isStub = true');
+    const what = demo ? "the Wear Engine stub and its demo data (replaced by Huawei's file on the watch)" : "Huawei's wearengine.js";
+    console.log(`      of which ${what}: ${fmt(code)} without comments (${stub.map((f) => relative(JS_ROOT, f)).join(', ')})`);
+  }
 }
 
 // ---- 2. Icons + decoded image cost ------------------------------------------------------------

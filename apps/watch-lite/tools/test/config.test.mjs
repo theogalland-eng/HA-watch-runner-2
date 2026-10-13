@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { APP } from './paths.mjs';
+import { APP, main } from './paths.mjs';
 
 const config = JSON.parse(readFileSync(join(APP, 'entry/src/main/config.json'), 'utf8'));
 
@@ -22,4 +22,10 @@ test('committed build-profile.json5 carries no signing material', () => {
   const profile = readFileSync(join(APP, 'build-profile.json5'), 'utf8');
   assert.match(profile, /"signingConfigs"\s*:\s*\[\s*\]/);
   assert.doesNotMatch(profile, /"?\b(storeFile|storePassword|keyPassword|certpath|profile)\b"?\s*:/);
+});
+
+test('the P2P peer (common/config/peer.js) is the companion declared in supportLists', async () => {
+  const { PEER } = await main('common/config/peer.js');
+  const entry = config.module.metaData.customizeData.find((d) => d.name === 'supportLists');
+  assert.equal(`${PEER.pkg}:${PEER.fingerprint}`, entry.value);
 });

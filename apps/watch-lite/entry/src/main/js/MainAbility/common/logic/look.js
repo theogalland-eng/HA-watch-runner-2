@@ -22,9 +22,14 @@ function transientKey(d, s) {
     return t && t[s] ? t[s] : null;
 }
 
+/** HA reports no usable state. A scene is `unknown` until first activated: that one is fine. */
+function isDown(d, s) {
+    return d === 'scene' ? s === 'unavailable' : !!UNAVAILABLE[s];
+}
+
 /** Whether the entity cannot be acted on right now (unavailable, or moving between states). */
 export function isBusy(card) {
-    return !!UNAVAILABLE[card.s] || transientKey(card.d, card.s) !== null;
+    return isDown(card.d, card.s) || transientKey(card.d, card.s) !== null;
 }
 
 /** State the action is heading to (drives the "en cours" text). */
@@ -68,7 +73,7 @@ export function stateLook(card) {
     if (moving) {
         return { icon: 'ic_pending_act', iconColor: 'act', textKey: moving, text: null, stateColor: 'act' };
     }
-    if (UNAVAILABLE[s] && d !== 'sensor') {
+    if (isDown(d, s)) {
         if (d === 'lock') {
             return { icon: 'ic_fail_err', iconColor: 'err', textKey: 'st_unavailable', text: null, stateColor: 'off' };
         }

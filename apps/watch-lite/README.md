@@ -23,21 +23,22 @@ entry/src/main/
     common/
       logic/                  pure ES5, unit-tested with Node:
                                 session (interaction rules, timers), view (view-models), store (state),
-                                look (design rules per domain), format, palette, cache
-      repo/mockRepository.js  Mock mode: the design's 10 favorites, prototype latencies
-      config/dev.js           Mock switches: 5 / 10 / 0 favorites, network ok / ha / tel, cache
+                                look (design rules per domain), protocol (v2 codes), format, palette, cache
+      services/               p2pClient.js (request/reply by id), haRepository.js (v2 + file cache),
+                              wearengine.js = STUB of Huawei's SDK file, simulating the v2 companion
+      config/                 peer.js (companion package + fingerprint);
+                              dev.js + demo.js (demo switches and favorites, imported by the stub only)
       styles/base.css         shared styles: type sizes, static colours, buttons
-      services/               haRepository.js, p2pClient.js (PR 3c)
       icons/                  the 26 design icons (generated, see tools/)
     i18n/                     fr-FR.json (design labels), en-US.json, ru-RU.json
   resources/                  app icon, strings
 tools/                        headless checks (Node ≥ 22.12): ES5 lint, unit tests, size/lite checks, icon generator
 ```
 
-Same layering as the ArkTS app (state / repository / mock / P2P) and the same
+Same layering as the ArkTS app (state / repository / P2P) and the same
 [P2P contract](../../docs/p2p-protocol.md), reimplemented in lite-JS.
 
-## One page, Mock mode
+## One page, demo mode in the Wear Engine stub
 
 Lite's router has no back stack: `router.replace` destroys the current page with its timers and
 callbacks. An action started in the detail, or a row "en cours" when Réglages opens, would lose its
@@ -48,10 +49,16 @@ single page**:
 - the rules live in `common/logic/session.js` (no `@system` import, timers injected), the texts and
   colours of each screen in `common/logic/view.js`; the page only wires them to lite.
 
-**Mock mode** (`common/repo/mockRepository.js`) is used only when Wear Engine is unavailable: the
-DevEco previewer/simulator, or a build without the SDK. In this PR it is always used (the Wear
-Engine repository comes in PR 3c). Edit `common/config/dev.js` and reload the preview to reproduce
-each design screen:
+The page always runs the **real chain**: session → `haRepository.js` (protocol v2, cache file
+`internal://app/ha_cache.json`) → `p2pClient.js` → `wearengine.js`.
+
+**Demo mode.** The committed `wearengine.js` is a **stub** of Huawei's SDK file. It answers like the
+v2 companion: the design's 10 favorites, the prototype's delays, `stale` on an old favorites
+revision, unlocking only with `act: "confirm"`. So the DevEco Previewer/simulator shows every
+screen, and the log starts with `[ha] start 1.0.0 (Wear Engine stub)`. `dev.js` and `demo.js` are
+imported **only by the stub**: with Huawei's file ([below](#wear-engine-sdk-for-the-watch)), they
+leave the build and the app talks to the phone. Edit `common/config/dev.js` and reload the preview
+to reproduce each design screen:
 
 | `dev.js` | Design screen |
 |----------|---------------|
@@ -62,27 +69,65 @@ each design screen:
 | `network: 'ha', cache: false` | 5c full screen |
 | `favorites: 0` | 5d "Aucun favori" |
 | tap "Porte d'entrée" / long press a row / Réglages | 3 confirmation / 4a–4c detail / 6 settings |
-| `latency: 4000` | every Mock reply takes 4 s: "en cours" (blue) stays visible, then the check |
+| `latency: 4000` | every stub reply takes 4 s: "en cours" (blue) stays visible, then the check |
 | `trace: true` | one line per redraw in `previewer.log`: `[ha] paint list r0=Extinction… r1=Éteinte …` |
 
-## JS memory (main criterion) and plan B
+`cache: true` reads the cache file written by the previous run: the very first run has none (full
+screen 5b/5c on a failed sync). `cache: false` neither reads nor writes it. Changing `favorites`
+shows the old cached list until the sync answers.
 
-`npm run check` measures the page source (without comments), but what counts on the watch is the
-**JS memory at runtime**: the lite simulator shows a limit of 49 144 bytes (48 KB) in non-debug
-mode (origin of the 48 KB: see [platform-constraints.md](../../docs/platform-constraints.md)).
-Measure it in DevEco, lite simulator, **non-debug** mode, in the worst case:
+## Wear Engine SDK (for the watch)
 
-1. `dev.js` with `favorites: 10`;
-2. scroll the list to the bottom;
-3. tap "Porte d'entrée" (unlock confirmation open);
-4. back, long press a row (detail);
-5. back, Réglages.
+Huawei's lite JS SDK file (`wearengine.js`, exporting `P2pClient`, `Message`, `Builder`) is not in
+the repo. Download it from HUAWEI Developers (Wear Engine, lite wearable JS SDK) and keep it outside
+the repo. Replacing the stub with it removes the whole demo from the build:
 
-Note the highest value. Threshold **< 49 144 B**; target **≤ 40 000 B**, to keep room for PR 3c
-(protocol, P2P client, cache).
+```bash
+# from the monorepo root
+STUB=apps/watch-lite/entry/src/main/js/MainAbility/common/services/wearengine.js
+cp ~/huawei/wearengine.js "$STUB"            # Huawei's file over the stub
+git update-index --skip-worktree "$STUB"     # git no longer shows or commits it
+# build the HAP in DevEco; npm run check now prints "of which Huawei's wearengine.js"
 
-**Plan B**, if the measured margin is too small in PR 3c (decided on the measured memory, not on the
-source size):
+# back to demo mode (Previewer):
+git update-index --no-skip-worktree "$STUB"
+git checkout -- "$STUB"
+```
+
+- With Huawei's file, the log line is `[ha] start 1.0.0` (no "stub").
+- `dev.js` is no longer read: the cache file is always used, with no trace.
+- `npm test` skips the tests that need the stub (they play the scenarios against the simulated
+  companion). Run `npm run verify` in demo mode before committing.
+- The peer (`common/config/peer.js`) must match `supportLists`; a test checks it. Send result
+  **206** means not delivered: package or fingerprint mismatch, no receiver, Bluetooth off, or the
+  watch app not in the foreground (Huawei Wear Engine FAQ). The watch then shows "Échec : tél.
+  déconnecté".
+
+## Watch test (decides plan B)
+
+`npm run check` measures the page source without comments and warns above 40, 44 (plan B) and
+48 KB. These are **warnings**, not failures. The DevEco Previewer measurements
+([platform-constraints.md](../../docs/platform-constraints.md#page-size-and-js-memory)) show:
+- the 48 KB limit is not enforced there;
+- its JS heap reading is not reliable.
+
+No lite API gives the free JS memory, so the decision is taken **on the Runner 2**, with Huawei's
+`wearengine.js` and the companion paired. Run this sequence and read the logs through DevEco
+Assistant (查看日志 / View Logs):
+
+1. Start the app: `[ha] start 1.0.0`, then the list from the cache, then "à l'instant".
+2. **10 favorites** in the companion: the whole list shows.
+3. **Scroll** to the bottom and back with the crown or a swipe.
+4. Tap the locked lock: **confirmation**, then "Déverrouiller", then "en cours" and the new state.
+5. Long press a row: **detail**, act from its button, then swipe back.
+6. Open **Réglages**, then "Resynchroniser".
+7. **10 actions in a row** on light/switch rows, each waiting for its result (check or failure).
+8. Quit and restart: the list shows the last state at once (cache file).
+
+Pass: no crash, no freeze, no black screen, no "out of memory" or JS error in the log, and each
+row ends in its real state. If one step fails for memory reasons, go to plan B.
+
+**Plan B**, decided on the watch test, not on the source size:
 - move Réglages to its own page (no action starts there);
 - keep the session (actions in flight, timers, P2P receiver) in an application-level module instead
   of the page. ⚠ To verify first: lite wearables reportedly do not support the `$def` global data,
@@ -128,15 +173,21 @@ Tested on Linux (Node 22) and also on Windows (Node 24). The tools work with nat
   - Also forbidden: `globalThis`, `Promise`, `Map`, `Set`, `Symbol`, `Proxy`, `Reflect`, and
     `setInterval` (battery).
 - **`npm test`**: `node:test` on:
-  - the pure logic in `common/logic/`: the interaction rules played with fake timers on the Mock
-    and checked with the real fr-FR texts (one tap = one action, 1.5 s / 3 s / 8 s / 10 s, retry,
-    back gesture, late replies, favorites revision);
+  - the pure logic in `common/logic/`: the interaction rules played with fake timers on the real
+    chain (session → repository → P2P client → stub companion) and checked with the real fr-FR
+    texts (one tap = one action, 1.5 s / 3 s / 8 s / 10 s, retry, back gesture, late replies,
+    favorites revision, cache file);
+  - the protocol: the code tables of `protocol.js` equal those of
+    [docs/p2p-protocol.md](../../docs/p2p-protocol.md) **and** of the companion's `CardCodes.kt`
+    (both parsed); decoding of unknown codes; request sizes;
+  - the P2P client and the repository on a fake SDK and a fake `@system.file`;
   - the i18n files (same keys and placeholders in the three languages);
   - the icons (pixels, size, reproducibility) and `config.json`.
 - **`npm run check`**:
-  - each page (hml + css + js + local imports) **without comments**: warning above 40 KB (and above
-    44 KB, the plan B threshold), error above 48 KB. The raw size and the size without comments or
-    indentation are printed too. Comments never reach the watch: the lite toolchain compiles the page;
+  - each page (hml + css + js + local imports) **without comments**: warnings above 40 KB, 44 KB
+    (plan B threshold) and 48 KB (to be confirmed on the watch, [above](#watch-test-decides-plan-b)).
+    The raw size, the size without comments or indentation and the stub's share are printed too.
+    Comments never reach the watch: the lite toolchain compiles the page;
   - the 26 icons, each < 1 KB;
   - decoded RGBA and estimated HAP size;
   - only lite CSS properties/selectors and HML components/events (no `gap`, `box-sizing`,
@@ -151,7 +202,7 @@ remain manual. Check the screens in **both** the Previewer (454) and the simulat
 
 ## Hard limits (lite wearable)
 
-HAP ≤ 10 MB · 48 KB (JS memory or page size, origin to confirm) · ~1 MB RAM · no background · router has no back-stack · state not
+HAP ≤ 10 MB · 48 KB (JS memory or page size, not enforced by the Previewer: to confirm on the watch) · ~1 MB RAM · no background · router has no back-stack · state not
 restored after restart · images decoded to raw RGBA (keep icons tiny). Full list:
 [platform-constraints.md](../../docs/platform-constraints.md).
 
@@ -191,7 +242,8 @@ GT has no "HDC debugging" / "Debug via Wi-Fi", so install goes **through the pho
 - **ES5.1 only.** `globalThis` throws `ReferenceError` on JerryScript. The single page needs no
   state shared between pages.
 - **Watch has no internet.** All network goes through the phone companion over Wear Engine P2P
-  (`common/services/p2pClient.js`, PR 3c). Until then the app runs on the Mock.
+  (`common/services/p2pClient.js`). Without Huawei's `wearengine.js`, the stub simulates the
+  companion (demo mode).
 - **Timers.** Only `setTimeout`, all cleared in `onDestroy`; no `setInterval` (the lint refuses it).
   "il y a 3 min" is recomputed on each redraw, not by a timer.
 - **Icons bloat.** A PNG is decoded to raw RGBA in the `.bin`: a large PNG can blow the 10 MB HAP

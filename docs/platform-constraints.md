@@ -85,18 +85,8 @@ If a lite-JS client is built for GT, these constraints apply:
 
 - HAP ≤ 10 MB; ~1 MB RAM; no background; router has no back-stack; state not restored after
   restart.
-- **48 KB: origin to confirm (page size or JS memory).** This repo first read it as a per-page source
-  size limit. One unofficial source (a 2022 HarmonyOS lite-wearable tutorial, found by a web search
-  and not opened from here: [developer.aliyun.com/article/1059616](https://developer.aliyun.com/article/1059616))
-  describes it as the **JS memory limit at runtime**: 49 144 bytes, shown by the lite simulator.
-  Debug mode lifts the limit and shows only the current use, because the debugger takes memory.
-  The same search reports that lite wearables do not support the `$def` global data: pages share
-  data through storage or files. How we measure:
-  - `npm run check` (`apps/watch-lite/tools/`) measures the page source **without comments**
-    (comments never reach the watch). It warns above 40 KB and fails above 48 KB;
-  - the main criterion is the JS memory of the lite simulator, **in non-debug mode**, in the worst
-    case. The scenario is in [apps/watch-lite/README.md](../apps/watch-lite/README.md#js-memory-main-criterion-and-plan-b).
-    The limit is < 49 144 B and the target ≤ 40 000 B.
+- **48 KB: page size or JS memory, not enforced by the DevEco Previewer.** To be confirmed on the
+  Runner 2: see [Page size and JS memory](#page-size-and-js-memory) below.
 - Images are decoded to raw RGBA → keep icons tiny (a few PNGs, no large graphics).
 - ES5.1 only, **no** `globalThis`. The lite app keeps a single page, so it shares no state between
   pages (`$def` reportedly unsupported, see above).
@@ -119,6 +109,37 @@ If a lite-JS client is built for GT, these constraints apply:
   protocol v2.
 - No direct `hdc` (GT has no "HDC debugging"/"Debug via Wi-Fi"). Install + logs via the phone app
   **HUAWEI DevEco Assistant** (`查看日志` / View Logs).
+
+## Page size and JS memory
+
+**Where the 48 KB comes from.**
+- This repo first read it as a per-page source size limit.
+- One unofficial source describes it as the **JS memory limit at runtime**: 49 144 bytes, shown by
+  the lite simulator. It is a 2022 HarmonyOS lite-wearable tutorial, found by a web search and not
+  opened from here: [developer.aliyun.com/article/1059616](https://developer.aliyun.com/article/1059616).
+  - Debug mode lifts the limit and shows only the current use, because the debugger takes memory.
+  - The same search reports that lite wearables do not support the `$def` global data: pages share
+    data through storage or files.
+
+**Measured by the maintainer** (DevEco 6.1, lite Previewer, `master` after PR #7):
+
+| Measure | Value |
+|---------|-------|
+| Compiled page `loader_out_lite/.../pages/index/index.js` | **48 177 bytes**, while `npm run check` reported 39.4 KB without comments or indentation |
+| Same page with about 33 KB of dummy code added | **84 803 bytes** compiled: it loads and renders normally in the Previewer |
+| Previewer JS heap | `memoryUsage.totalBytes` = 524 280 (512 KB) |
+| Previewer `allocBytes` | about 92 KB with **and** without the dummy code: it does not track the page, so it is not usable |
+
+**Consequences.**
+- The Previewer does not enforce 48 KB, and its memory reading cannot decide either way.
+- `npm run check` (`apps/watch-lite/tools/`) measures the page source **without comments** (comments
+  never reach the watch). It only **warns**: above 40 KB, above 44 KB (plan B threshold) and above
+  48 KB ("to be confirmed on the watch"). It also prints the share of the Wear Engine stub, which
+  Huawei's SDK file replaces on the watch.
+- No lite API gives the free JS memory. The decision (plan B or not) is taken **on the real
+  Runner 2**, with the checklist in
+  [apps/watch-lite/README.md](../apps/watch-lite/README.md#watch-test-decides-plan-b): 10 favorites,
+  scrolling, confirmation, detail, Réglages, then 10 actions in a row.
 
 ## Future outlook
 

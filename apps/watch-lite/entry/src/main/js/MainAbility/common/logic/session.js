@@ -8,6 +8,7 @@
 //   loadCache(cb(cache|null))          cache = { fr, syncedAt, cards }
 //   sync(cb(err, { fr, cards }))       err = { kind: 'tel' | 'ha' }
 //   act({ k, fr, confirm }, cb(err, card|null))   err.kind adds 'timeout' | 'stale'
+//   persist(state)                     optional: keeps the last state for the next launch
 //   close()                            drops pending replies (page destroyed)
 import { createState, findCard, startSync, applySync, failSync, applyEntity, startAction,
     actionSucceeded, actionFailed, clearPhase } from './store.js';
@@ -117,6 +118,7 @@ function endSync(se, tok, err, res) {
             applyEntity(se.st, newer[j].card, newer[j].time);
         }
         se.live = true;
+        persist(se);
         // A slot may now hold another entity: never leave a detail or an unlock confirmation open on it.
         if ((se.nav === 'detail' || se.nav === 'confirm') && (!sameFavorites || !findCard(se.st, se.nav === 'detail' ? se.det : se.conf))) {
             cancel(se, se.confTimer);
@@ -251,6 +253,7 @@ export function back(se) {
 function run(se, k, confirmed) {
     var card = findCard(se.st, k);
     var fr = se.st.fr;
+    var before = card.s;
     var to = targetOf(card.d, card.s);
     var tok = startAction(se.st, k, to);
     if (!tok) {
@@ -277,8 +280,12 @@ function run(se, k, confirmed) {
             var mine = fresh && fresh.k === k && se.st.fr === fr ? fresh : null;
             if (mine) {
                 applyEntity(se.st, mine, se.now()); // HA's truth, even after the 8 s timeout
+                persist(se);
             }
-            if (actionSucceeded(se.st, k, tok, mine ? mine.s : to)) {
+            if (mine && mine.s === before && REACTS[card.d]) {
+                // The companion waited 5 s and the device still shows its old state: it did not react.
+                fail(se, k, tok, 'timeout');
+            } else if (actionSucceeded(se.st, k, tok, mine ? mine.s : to)) {
                 later(se, OK_MS, function () {
                     clearPhase(se.st, k, tok);
                 });
@@ -287,6 +294,15 @@ function run(se, k, confirmed) {
         se.onChange();
     });
     se.onChange();
+}
+
+/** Domains whose state must change after an action (a scene's does not, a sensor has no action). */
+var REACTS = { light: true, 'switch': true, lock: true, cover: true };
+
+function persist(se) {
+    if (se.repo.persist) {
+        se.repo.persist(se.st);
+    }
 }
 
 function fail(se, k, tok, kind) {

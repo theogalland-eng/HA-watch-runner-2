@@ -39,10 +39,14 @@ The maintainer of this fork runs:
 
 | App | Package / bundle | Status |
 |-----|------------------|--------|
-| Watch (`apps/watch-lite/`) | `io.github.theogallandeng.hawatch` | Done: `config.json` bundle + `supportLists` (companion **debug** fingerprint) |
+| Watch (`apps/watch-lite/`) | `io.github.theogallandeng.hawatch` | Done: protocol v2, P2P client, file cache; `supportLists` = companion **debug** fingerprint. Demo stub until Huawei's `wearengine.js` is copied in |
 | Companion (`apps/phone-android/`) | `io.github.theogallandeng.hawatch.companion` | Done |
 
 Still to do:
+- **Watch SDK:** Huawei's lite `wearengine.js` is not in git. Copy it over the stub for a watch build
+  ([procedure](apps/watch-lite/README.md#wear-engine-sdk-for-the-watch)); `npm run verify` runs with
+  the stub. Then run the watch test, which decides plan B
+  ([checklist](apps/watch-lite/README.md#watch-test-decides-plan-b)).
 - **Release:** `supportLists` in `apps/watch-lite/entry/src/main/config.json` holds the companion's
   *debug* SHA-256. Replace it with the release key's fingerprint
   ([details](apps/watch-lite/README.md#identifiers)).
@@ -55,10 +59,12 @@ Still to do:
 **Watch lite checks without DevEco** (Node ≥ 22.12), from `apps/watch-lite/tools/`:
 `npm ci && npm run verify`.
 - **Lint:** ES5 lint (no ES2015+, no `Promise`/`globalThis`/`setInterval`).
-- **Tests:** unit tests of `common/logic/`.
-- **Check:** page without comments ≤ 48 KB (warning from 40 KB), the 26 icons < 1 KB, lite-only
-  CSS/HML, no signing material. The main criterion is the JS memory measured in the DevEco lite
-  simulator ([details](apps/watch-lite/README.md#js-memory-main-criterion-and-plan-b)).
+- **Tests:** unit tests of `common/logic/` and `common/services/`, on the real chain against the
+  stub companion. The code tables of `protocol.js`, `docs/p2p-protocol.md` and `CardCodes.kt` must
+  stay identical (a test parses all three).
+- **Check:** page size without comments (warnings at 40 / 44 / 48 KB; the 48 KB is not enforced by
+  the Previewer and is decided on the watch), the 26 icons < 1 KB, lite-only CSS/HML, no signing
+  material ([details](apps/watch-lite/README.md#watch-test-decides-plan-b)).
 - **Icons:** `npm run icons` regenerates the 26 icons from the design paths.
 
 ## Repository layout (monorepo)

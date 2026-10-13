@@ -60,10 +60,11 @@ CI** — verification is currently manual via DevEco Studio:
 
 **Watch lite** (`apps/watch-lite/`), partly headless:
 - `cd apps/watch-lite/tools && npm ci && npm run verify` runs the ES5 lint, the unit tests of
-  `common/logic/`, and the page/icon/lite-CSS/signing checks.
+  `common/logic/` and `common/services/` (against the Wear Engine stub that simulates the companion),
+  and the page/icon/lite-CSS/signing checks.
 - The DevEco round previewer/simulator, compared with `docs/design/watch-lite/screens/`, stays
-  manual. So does the JS memory of the lite simulator (non-debug mode, worst case), the main size
-  criterion: see [apps/watch-lite/README.md](apps/watch-lite/README.md#js-memory-main-criterion-and-plan-b).
+  manual. So does the test on the Runner 2 with Huawei's `wearengine.js`, which decides the page-size
+  question (plan B): see [apps/watch-lite/README.md](apps/watch-lite/README.md#watch-test-decides-plan-b).
 
 **Phone companion** (`apps/phone-android/`): headless, with the committed Gradle wrapper — run
 `./gradlew test` (JVM unit tests, incl. the protocol handler against MockWebServer) and

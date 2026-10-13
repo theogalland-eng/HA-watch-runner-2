@@ -117,7 +117,8 @@ What the companion does:
 5. `ACK { ok: true, c }` carries the last state read:
    - if it is still transient, the watch shows the row "en cours", never as a success, and the next
      sync corrects it;
-   - if it is unchanged, the device did not react within 5 s;
+   - if it is unchanged, the device did not react within 5 s: the watch shows "Échec : délai
+     dépassé" (light, switch, lock, cover; a scene's state does not change);
    - `c` is absent if the entity could not be read back.
 
    On failure, `ACK { ok: false, code }` carries no card: the watch restores its cached state.
@@ -169,8 +170,8 @@ A receiver shows an **unknown code as "unknown"** and never fails on it.
 | `f` | `closed` | Cover, reserved. |
 
 These two tables are the reference. They are mirrored in `CardCodes.kt` (companion) and in
-`common/logic/protocol.js` (watch, PR 3c). A test on each side parses them from this file, so the two
-implementations stay identical.
+`common/logic/protocol.js` (watch). A test on each side parses them from this file (the watch's
+test also parses `CardCodes.kt`), so the two implementations stay identical.
 
 ### Favorites revision `fr`
 
@@ -178,7 +179,8 @@ implementations stay identical.
   31 bits.
   - It is stateless: the same list gives the same `fr`, even after a reinstall.
   - Any change of list or order changes it, except with probability about 2⁻³¹.
-- **Golden values** (tested on both sides):
+- **Golden values** (tested on the companion, which computes `fr`; the watch only sends back the
+  `fr` of its last sync):
 
   | Favorites | `fr` |
   |-----------|------|
@@ -190,7 +192,7 @@ implementations stay identical.
 
 `code` is short ASCII. It never contains the token or the URL.
 
-| `code` | Meaning | Watch (3c) |
+| `code` | Meaning | Watch |
 |--------|---------|------------|
 | `stale` | `fr` is not the current favorites revision | resync, no red row |
 | `confirm` | Unlocking without `act: "confirm"` | failure |
