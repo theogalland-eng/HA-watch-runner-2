@@ -32,6 +32,12 @@ This **mirrors** the ArkTS app's architecture (store / repository / mock / P2P /
 EN+RU) — same design, reimplemented in lite-JS. The shared contract is
 [../../docs/p2p-protocol.md](../../docs/p2p-protocol.md).
 
+## Design
+
+The UI spec is in [docs/design/watch-lite/](../../docs/design/watch-lite/README.md): screens,
+palette, type sizes, 466×466 safe areas, icons, interaction rules, and the gaps with the lite
+platform (each with an alternative).
+
 ## Hard limits (lite wearable)
 
 HAP ≤ 10 MB · page ≤ 48 KB · ~1 MB RAM · no background · router has no back-stack · state not
