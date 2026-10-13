@@ -14,7 +14,7 @@ This is a **monorepo** ([ADR-0006](docs/adr/0006-monorepo-structure.md)):
 
 - `apps/watch-arkts/` — ArkTS app, full wearable (Watch 4/5/Ultimate). **The rules below are about this app.**
 - `apps/watch-lite/` — lite-JS app for Watch GT (separate runtime; see [docs/platform-constraints.md](docs/platform-constraints.md)).
-- `apps/phone-android/` — Android companion (Kotlin), not written yet.
+- `apps/phone-android/` — Android companion (Kotlin + Compose); build/test with `./gradlew test` (see its README).
 - `docs/` + `AGENTS.md` / `CLAUDE.md` / `DEVELOPMENT.md` — shared knowledge + AI layer (start here).
 
 Inside `apps/watch-arkts/entry/src/main/ets/`:
@@ -54,7 +54,7 @@ Test on:
 
 1. Update domain → presentation mapping (icon/color/labels)
 2. Add DTO messages for sync and service call
-3. Implement phone-side REST call to HA
+3. Implement the phone side: a `DomainMapper` (+ `allowedServices`, labels, tests) in `apps/phone-android/core/…/mapping/`
 4. Add mock entities + actions for emulator testing
 5. Add screenshots if UI changes
 

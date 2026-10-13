@@ -13,7 +13,7 @@ Do not duplicate that content here; this file holds only Claude Code-specific gu
 ## Deep-dive references (load on demand)
 
 - [docs/architecture.md](docs/architecture.md) — system map, layers, startup & data flow.
-- [docs/p2p-protocol.md](docs/p2p-protocol.md) — watch↔phone wire contract (companion is a separate, unwritten repo).
+- [docs/p2p-protocol.md](docs/p2p-protocol.md) — watch↔phone wire contract (companion: `apps/phone-android/`).
 - [docs/adr/](docs/adr/) — why decisions were made; **don't re-litigate an Accepted ADR** — supersede it with a new one.
 - [DEVELOPMENT.md](DEVELOPMENT.md) — the AI-first workflow and review/test agent roles.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contribution rules, PR checklist, "add a new HA domain".
