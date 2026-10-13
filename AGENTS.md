@@ -26,6 +26,7 @@ The maintainer of this fork runs:
 
 - **Watch:** Huawei **Watch GT Runner 2**. It is a *lite wearable*, so its app is
   **`apps/watch-lite/`**. `apps/watch-arkts/` cannot run on it.
+  Its UI follows the design spec in [docs/design/watch-lite/](docs/design/watch-lite/README.md).
 - **Phone:** Xiaomi **Redmi Note 13 Pro+** on **HyperOS**, with Huawei Health. Its app is
   **`apps/phone-android/`**.
 - **Priority: battery, on both devices.**
