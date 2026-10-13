@@ -21,6 +21,19 @@ export function createState() {
     };
 }
 
+/**
+ * Typographic quotes ’ ‘ become ': the lite font (SourceHanSansSC) draws them full width, which
+ * leaves a gap ("Porte d’ entrée"). No RegExp on lite.
+ */
+export function plainQuotes(text) {
+    var out = '';
+    for (var i = 0; i < text.length; i++) {
+        var ch = text.charAt(i);
+        out += ch === '\u2019' || ch === '\u2018' ? "'" : ch;
+    }
+    return out;
+}
+
 /** Validates and copies a card; returns null when the shape is wrong. */
 export function normalizeCard(c) {
     if (!c || typeof c !== 'object') {
@@ -32,7 +45,7 @@ export function normalizeCard(c) {
     if (typeof c.d !== 'string' || typeof c.n !== 'string' || typeof c.s !== 'string') {
         return null;
     }
-    return { k: c.k, d: c.d, n: c.n.slice(0, MAX_NAME), s: c.s };
+    return { k: c.k, d: c.d, n: plainQuotes(c.n.slice(0, MAX_NAME)), s: c.s };
 }
 
 /** Keeps valid cards, in order, dropping duplicate slots and anything beyond MAX_FAVORITES. */

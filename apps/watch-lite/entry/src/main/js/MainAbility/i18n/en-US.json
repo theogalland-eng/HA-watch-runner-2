@@ -31,10 +31,10 @@
     "btn_close": "Close",
     "btn_run": "Start",
     "ago_now": "just now",
-    "ago_min": "{n} min ago",
-    "ago_hour": "{n} h ago",
+    "ago_min": "[n] min ago",
+    "ago_hour": "[n] h ago",
     "never": "Never",
-    "updated": "Updated {ago}",
+    "updated": "Updated [ago]",
     "syncing": "Syncing…",
     "status_phone": "Phone offline",
     "status_ha": "HA unreachable",
@@ -51,7 +51,7 @@
     "err_phone_b1": "Turn on Bluetooth and open",
     "err_phone_b2": "the companion app.",
     "err_ha_t2": "unreachable",
-    "err_ha_b1": "Check the phone’s",
+    "err_ha_b1": "Check the phone's",
     "err_ha_b2": "network.",
     "empty_title": "No favorites",
     "empty_b1": "Choose your favorites",
@@ -64,7 +64,7 @@
     "unknown": "Unknown",
     "last_sync": "Last sync",
     "favorites": "Favorites",
-    "fav_count": "{n} of {max}",
+    "fav_count": "[n] of [max]",
     "version": "Version"
   }
 }

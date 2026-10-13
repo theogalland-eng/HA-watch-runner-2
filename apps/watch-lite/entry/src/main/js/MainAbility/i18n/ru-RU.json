@@ -31,10 +31,10 @@
     "btn_close": "Закрыть",
     "btn_run": "Запустить",
     "ago_now": "только что",
-    "ago_min": "{n} мин назад",
-    "ago_hour": "{n} ч назад",
+    "ago_min": "[n] мин назад",
+    "ago_hour": "[n] ч назад",
     "never": "Никогда",
-    "updated": "Обновлено {ago}",
+    "updated": "Обновлено [ago]",
     "syncing": "Синхр…",
     "status_phone": "Нет телефона",
     "status_ha": "HA недоступен",
@@ -64,7 +64,7 @@
     "unknown": "Неизвестно",
     "last_sync": "Последняя синхр.",
     "favorites": "Избранное",
-    "fav_count": "{n} из {max}",
+    "fav_count": "[n] из [max]",
     "version": "Версия"
   }
 }

@@ -9,7 +9,7 @@ export var DEMO = [
     { k: 0, d: 'light', n: 'Salon', s: 'on' },
     { k: 1, d: 'light', n: 'Cuisine', s: 'off' },
     { k: 2, d: 'switch', n: 'Prise bureau', s: 'on' },
-    { k: 3, d: 'lock', n: 'Porte d’entrée', s: 'locked' },
+    { k: 3, d: 'lock', n: 'Porte d\'entrée', s: 'locked' },
     { k: 4, d: 'lock', n: 'Garage', s: 'unlocked' },
     { k: 5, d: 'light', n: 'Lampe de chevet parents', s: 'off' },
     { k: 6, d: 'cover', n: 'Volet séjour', s: 'open' },
@@ -33,10 +33,11 @@ function copyAll(list) {
     return out;
 }
 
-/** dev = { favorites: 5 | 10 | 0, network: 'ok' | 'ha' | 'tel', cache: boolean } (common/config/dev.js). */
+/** dev = { favorites, network, cache, latency } (common/config/dev.js). */
 export function createMockRepository(dev, timers, now) {
     var count = dev.favorites === 10 || dev.favorites === 0 ? dev.favorites : 5;
     var net = dev.network === 'ha' || dev.network === 'tel' ? dev.network : 'ok';
+    var slow = dev.latency > 0 ? dev.latency : 0; // one delay for every reply, to watch "en cours"
     var cards = copyAll(DEMO.slice(0, count));
     var pending = [];
 
@@ -62,7 +63,7 @@ export function createMockRepository(dev, timers, now) {
             cb(dev.cache ? { fr: FR, syncedAt: now() - CACHE_AGE_MS, cards: copyAll(cards) } : null);
         },
         sync: function (cb) {
-            after(net === 'tel' ? 900 : 1500, function () {
+            after(slow || (net === 'tel' ? 900 : 1500), function () {
                 if (net === 'ok') {
                     cb(null, { fr: FR, cards: copyAll(cards) });
                 } else {
@@ -71,7 +72,7 @@ export function createMockRepository(dev, timers, now) {
             });
         },
         act: function (req, cb) {
-            after(net === 'tel' ? 500 : 1300, function () {
+            after(slow || (net === 'tel' ? 500 : 1300), function () {
                 var c = find(req.k);
                 if (net !== 'ok') {
                     cb({ kind: net }, null);

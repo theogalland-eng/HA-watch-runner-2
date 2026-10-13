@@ -3,4 +3,6 @@
 //   favorites: 5 | 10 | 0       5 = dashboard, 10 = long list variant, 0 = "Aucun favori" (5d)
 //   network: 'ok' | 'ha' | 'tel'  'ha' = HA unreachable (5c), 'tel' = phone not connected (5b)
 //   cache: true | false         true = launch with a 3-min-old cache; false = first launch (full-screen errors)
-export var DEV = { favorites: 5, network: 'ok', cache: true };
+//   latency: 0 | ms             0 = the prototype's delays; e.g. 4000 = every reply takes 4 s ("en cours" visible)
+//   trace: false | true         true = one line per redraw in the log ("[ha] paint list r0=… r1=…")
+export var DEV = { favorites: 5, network: 'ok', cache: true, latency: 0, trace: false };
