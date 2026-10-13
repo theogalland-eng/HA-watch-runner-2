@@ -1,0 +1,20 @@
+{
+  "name": "ha-watch-lite-tools",
+  "private": true,
+  "description": "Headless checks for the lite watch app (no DevEco needed): ES5 lint, unit tests of the pure logic, size and lite-CSS checks, icon generation.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "lint": "node lint.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node check.mjs",
+    "icons": "node icons/generate-icons.mjs",
+    "verify": "npm run lint && npm test && npm run check"
+  },
+  "devDependencies": {
+    "eslint": "9.39.5",
+    "eslint-plugin-es-x": "9.7.0"
+  }
+}
