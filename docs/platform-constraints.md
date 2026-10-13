@@ -101,8 +101,16 @@ If a lite-JS client is built for GT, these constraints apply:
 - ES5.1 only, **no** `globalThis`. The lite app keeps a single page, so it shares no state between
   pages (`$def` reportedly unsupported, see above).
 - No watch-side internet → all network goes through the phone companion over Wear Engine P2P.
+- **No RegExp** in ACE Lite's JerryScript. One regex literal in a module of the page is enough for
+  a black screen in the lite Previewer: `previewer.log` shows "Eval JS file failed — TypeError: wrong
+  type of argument" (verified in DevEco 6.1). The ES5 lint of `apps/watch-lite/tools/` refuses regex
+  literals, `RegExp`, and `match` / `matchAll` / `search`; use `indexOf` / `slice`.
+- **`$t` interpolates `{name}` itself**: without parameters it removes the placeholder ("{n} min ago"
+  became " min ago"). The lite app's texts use `[n]` placeholders, filled by `fill()`
+  (`common/logic/format.js`).
 - Text: a single font (SourceHanSansSC-Regular, no weights), and `letter-spacing` defaults to
-  **2 px**, so set it to 0 explicitly.
+  **2 px**, so set it to 0 explicitly. The font draws typographic quotes (’ U+2019, ‘ “ ”) full
+  width, which leaves a gap: write `'`, and the watch normalises received names (`plainQuotes`).
 - Events: only `click`, `longpress`, `swipe`; no touch events. `:active` only on
   `input[type=button]`, and only for the background.
 - `@system.storage` values must be **< 128 bytes**, so a data cache goes through `@system.file`

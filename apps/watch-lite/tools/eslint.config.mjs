@@ -53,6 +53,20 @@ export default [
         { name: 'Proxy', message: 'ES2015, not available on lite.' },
         { name: 'Reflect', message: 'ES2015, not available on lite.' },
         { name: 'setInterval', message: 'No periodic timers (battery): see AGENTS.md / ADR-0007.' },
+        { name: 'RegExp', message: 'No RegExp on ACE Lite: use indexOf/slice.' },
+      ],
+      // ACE Lite's JerryScript has no RegExp: a regex literal blacks the screen out at load
+      // ("Eval JS file failed — TypeError: wrong type of argument"). See docs/platform-constraints.md.
+      'no-restricted-syntax': [
+        'error',
+        { selector: 'Literal[regex]', message: 'No regex literal on ACE Lite (no RegExp): use indexOf/slice.' },
+        { selector: "NewExpression[callee.name='RegExp'], CallExpression[callee.name='RegExp']", message: 'No RegExp on ACE Lite.' },
+      ],
+      'no-restricted-properties': [
+        'error',
+        { property: 'match', message: 'Converts its argument to a RegExp: none on ACE Lite.' },
+        { property: 'matchAll', message: 'Converts its argument to a RegExp: none on ACE Lite.' },
+        { property: 'search', message: 'Converts its argument to a RegExp: none on ACE Lite.' },
       ],
     },
   },

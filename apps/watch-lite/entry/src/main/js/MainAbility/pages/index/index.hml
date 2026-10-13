@@ -16,11 +16,11 @@
                 <image class="ic48" src="{{$item.icon}}"></image>
                 <div class="row-texts">
                     <text class="t30 c-txt row-text">{{$item.name}}</text>
-                    <div if="{{$item.check}}" class="state-line">
-                        <image class="ic24 check" src="{{$item.check}}"></image>
+                    <!-- Fixed structure (no if/else inside the for): only `show` and texts change. -->
+                    <div class="state-line">
+                        <image show="{{$item.hasCheck}}" class="ic24 check" src="{{$item.check}}"></image>
                         <text class="t24 state-narrow" style="color: {{$item.color}};">{{$item.state}}</text>
                     </div>
-                    <text else class="t24 row-text" style="color: {{$item.color}};">{{$item.state}}</text>
                 </div>
             </div>
         </list-item>

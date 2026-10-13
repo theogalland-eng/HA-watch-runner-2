@@ -15,10 +15,14 @@ test('relative age follows the design: à l’instant / il y a N min / il y a N 
   assert.deepEqual(agoParts(now, now - 150 * MINUTE_MS), { key: 'ago_hour', n: 3 });
 });
 
-test('fill replaces named placeholders and keeps unknown ones', () => {
-  assert.equal(fill('il y a {n} min', { n: 3 }), 'il y a 3 min');
-  assert.equal(fill('Favoris : {n} sur {max}', { n: 5, max: 10 }), 'Favoris : 5 sur 10');
-  assert.equal(fill('{x} reste', {}), '{x} reste');
+test('fill replaces [name] placeholders (lite $t consumes {name}) and keeps unknown ones', () => {
+  assert.equal(fill('il y a [n] min', { n: 3 }), 'il y a 3 min');
+  assert.equal(fill('[n] sur [max]', { n: 5, max: 10 }), '5 sur 10');
+  assert.equal(fill('Mis à jour [ago]', { ago: 'il y a 2 min' }), 'Mis à jour il y a 2 min');
+  assert.equal(fill('[x] reste', {}), '[x] reste');
+  assert.equal(fill('a [b', { b: 1 }), 'a [b', 'an unclosed bracket stays');
+  assert.equal(fill('[n][n]', { n: 0 }), '00');
+  assert.doesNotMatch(fill.toString(), /\/[^/]+\/[gimsuy]*[,)]/, 'no regex literal (none on ACE Lite)');
 });
 
 test('ellipsize keeps short names and cuts long ones with a single "…"', () => {

@@ -77,16 +77,16 @@ function launch(dev, makeRepo) {
 
 const DASH = { favorites: 5, network: 'ok', cache: true };
 
-test('launch: the cache shows at once with a blue "Synchro…", then "à l’instant"; the age is recomputed on each render', () => {
+test('launch: the cache shows at once with a blue "Synchro…", then "à l\'instant"; the age is recomputed on each render', () => {
   const app = launch(DASH);
   let v = app.view();
   assert.equal(v.screen, 'list');
-  assert.deepEqual(v.rows.map((r) => r.name), ['Salon', 'Cuisine', 'Prise bureau', 'Porte d’entrée', 'Garage']);
+  assert.deepEqual(v.rows.map((r) => r.name), ['Salon', 'Cuisine', 'Prise bureau', 'Porte d\'entrée', 'Garage']);
   assert.deepEqual(v.status, { icon: '/common/icons/ic_sync_24_act.png', text: 'Synchro…', color: C.act });
-  assert.deepEqual(app.row(0), { k: 0, name: 'Salon', icon: '/common/icons/ic_light_on.png', state: 'Allumée', color: C.on, check: '' });
+  assert.deepEqual(app.row(0), { k: 0, name: 'Salon', icon: '/common/icons/ic_light_on.png', state: 'Allumée', color: C.on, check: '/common/icons/ic_check_24_on.png', hasCheck: false });
   app.clock.advance(1500);
   v = app.view();
-  assert.deepEqual(v.status, { icon: '/common/icons/ic_sync_24_sub.png', text: 'à l’instant', color: C.sub });
+  assert.deepEqual(v.status, { icon: '/common/icons/ic_sync_24_sub.png', text: 'à l\'instant', color: C.sub });
   app.clock.advance(3 * MIN);
   assert.equal(app.view().status.text, 'il y a 3 min');
   assert.ok(app.draws() > 0, 'the page is asked to redraw');
@@ -96,19 +96,20 @@ test('one tap = one action: only that row goes "en cours", then the new state + 
   const app = launch(DASH);
   app.clock.advance(1500);
   S.tapRow(app.se, 0);
-  assert.deepEqual(app.row(0), { k: 0, name: 'Salon', icon: '/common/icons/ic_pending_act.png', state: 'Extinction…', color: C.act, check: '' });
+  assert.deepEqual(app.row(0), { k: 0, name: 'Salon', icon: '/common/icons/ic_pending_act.png', state: 'Extinction…', color: C.act, check: '/common/icons/ic_check_24_on.png', hasCheck: false });
   assert.equal(app.row(1).state, 'Éteinte', 'the rest of the list is unchanged');
   S.tapRow(app.se, 0);
   assert.equal(app.acts.length, 1, 'a second tap while pending is ignored');
   S.tapRow(app.se, 1);
   assert.equal(app.row(1).state, 'Allumage…', 'the rest of the list stays usable');
   app.clock.advance(1300);
-  assert.deepEqual(app.row(0), { k: 0, name: 'Salon', icon: '/common/icons/ic_light_off.png', state: 'Éteinte', color: C.off, check: '/common/icons/ic_check_24_off.png' });
+  assert.deepEqual(app.row(0), { k: 0, name: 'Salon', icon: '/common/icons/ic_light_off.png', state: 'Éteinte', color: C.off, check: '/common/icons/ic_check_24_off.png', hasCheck: true });
   assert.equal(app.row(1).check, '/common/icons/ic_check_24_on.png');
+  assert.equal(app.row(1).hasCheck, true);
   app.clock.advance(1499);
-  assert.ok(app.row(0).check, 'check still shown before 1.5 s');
+  assert.ok(app.row(0).hasCheck, 'check still shown before 1.5 s');
   app.clock.advance(1);
-  assert.equal(app.row(0).check, '');
+  assert.equal(app.row(0).hasCheck, false);
   assert.equal(app.row(0).state, 'Éteinte');
 });
 
@@ -119,7 +120,7 @@ test('failure: red row with its cause for 3 s, red indicator, then the cached st
   assert.equal(app.view().screen, 'list', 'with a cache the error stays discreet');
   S.tapRow(app.se, 1);
   app.clock.advance(1300);
-  assert.deepEqual(app.row(1), { k: 1, name: 'Cuisine', icon: '/common/icons/ic_fail_err.png', state: 'Échec : HA injoignable', color: C.err, check: '' });
+  assert.deepEqual(app.row(1), { k: 1, name: 'Cuisine', icon: '/common/icons/ic_fail_err.png', state: 'Échec : HA injoignable', color: C.err, check: '/common/icons/ic_check_24_on.png', hasCheck: false });
   app.clock.advance(2999);
   assert.equal(app.row(1).state, 'Échec : HA injoignable', 'still red before 3 s');
   app.clock.advance(1);
@@ -160,7 +161,7 @@ test('unlocking goes through the confirmation (auto-cancelled after 10 s); locki
   app.clock.advance(1500);
   S.tapRow(app.se, 3);
   assert.equal(app.view().screen, 'confirm');
-  assert.equal(app.view().confirmName, 'Porte d’entrée');
+  assert.equal(app.view().confirmName, 'Porte d\'entrée');
   app.clock.advance(9999);
   assert.equal(app.view().screen, 'confirm', 'still open before 10 s');
   app.clock.advance(1);
@@ -240,7 +241,7 @@ test('the Mock refuses an unlock that skipped the confirmation, like the compani
   repo.act({ k: 3, fr: 9, confirm: true }, (err) => { res = err; });
   clock.advance(1300);
   assert.deepEqual(res, { kind: 'stale' }, 'an old favorites revision is refused');
-  assert.deepEqual(M.DEMO.map((c) => c.n), ['Salon', 'Cuisine', 'Prise bureau', 'Porte d’entrée', 'Garage', 'Lampe de chevet parents', 'Volet séjour', 'Température salon', 'Bonne nuit', 'Ventilation']);
+  assert.deepEqual(M.DEMO.map((c) => c.n), ['Salon', 'Cuisine', 'Prise bureau', 'Porte d\'entrée', 'Garage', 'Lampe de chevet parents', 'Volet séjour', 'Température salon', 'Bonne nuit', 'Ventilation']);
 });
 
 test('detail: name, big state, last update, one button in the target colour, greyed while running', () => {
@@ -250,7 +251,7 @@ test('detail: name, big state, last update, one button in the target colour, gre
   let d = app.view().detail;
   assert.equal(app.view().screen, 'detail');
   assert.deepEqual(d, {
-    icon: '/common/icons/ic_light_on.png', name: 'Salon', state: 'Allumée', color: C.on, meta: 'Mis à jour à l’instant', metaColor: C.sub,
+    icon: '/common/icons/ic_light_on.png', name: 'Salon', state: 'Allumée', color: C.on, meta: 'Mis à jour à l\'instant', metaColor: C.sub,
     hasButton: true, btnText: 'Éteindre', btnColor: C.txt, btnBorder: C.off, btnOpacity: 1, readOnly: false,
   });
   S.tapDetailButton(app.se);
@@ -312,7 +313,7 @@ test('no cache: full-screen 5b / 5c; "Réessayer" works in place and leaves only
   app.clock.advance(900);
   assert.deepEqual(app.view().message, {
     icon: '/common/icons/ic_phone_off_err.png', t1: 'Téléphone non', t2: 'connecté',
-    b1: 'Activez le Bluetooth et ouvrez', b2: 'l’app compagnon.', btn: 'Réessayer',
+    b1: 'Activez le Bluetooth et ouvrez', b2: 'l\'app compagnon.', btn: 'Réessayer',
   });
   assert.equal(app.view().screen, 'error');
   S.retry(app.se);
@@ -353,7 +354,7 @@ test('no favorite: 5d with "Resynchroniser" ("Synchro…" while it runs)', () =>
   app.clock.advance(1500);
   assert.equal(app.view().screen, 'empty');
   assert.deepEqual(app.view().message, {
-    icon: '/common/icons/ic_star_sub.png', t1: 'Aucun favori', t2: '', b1: 'Choisissez vos favoris dans', b2: 'l’app du téléphone', btn: 'Resynchroniser',
+    icon: '/common/icons/ic_star_sub.png', t1: 'Aucun favori', t2: '', b1: 'Choisissez vos favoris dans', b2: 'l\'app du téléphone', btn: 'Resynchroniser',
   });
   S.retry(app.se);
   assert.equal(app.view().message.btn, 'Synchro…');
@@ -367,7 +368,7 @@ test('settings: phone and HA status, resync, last sync, favorites, version', () 
   });
   app.clock.advance(1500);
   assert.deepEqual(app.view().settings, {
-    phone: 'Connecté', phoneColor: C.lock, ha: 'Joignable', haColor: C.lock, btn: 'Resynchroniser', last: 'à l’instant', fav: '5 sur 10', version: '1.0.0',
+    phone: 'Connecté', phoneColor: C.lock, ha: 'Joignable', haColor: C.lock, btn: 'Resynchroniser', last: 'à l\'instant', fav: '5 sur 10', version: '1.0.0',
   });
   S.retry(app.se);
   assert.equal(app.view().screen, 'settings', 'resync stays on the settings');
@@ -413,7 +414,7 @@ test('an action in flight survives screen changes (single page)', () => {
   app.clock.advance(1300);
   S.back(app.se);
   assert.equal(app.row(0).state, 'Éteinte');
-  assert.ok(app.row(0).check);
+  assert.ok(app.row(0).hasCheck);
 });
 
 test('a resync that changes the favorites closes a confirmation or detail on that slot (never unlock the wrong lock)', () => {
@@ -447,7 +448,7 @@ test('an action reply never overwrites a slot after the favorites changed (B1: n
   let fr = 1;
   let reply = null;
   const garage = [{ k: 3, d: 'lock', n: 'Garage', s: 'unlocked' }];
-  const porte = [{ k: 3, d: 'lock', n: 'Porte d’entrée', s: 'locked' }];
+  const porte = [{ k: 3, d: 'lock', n: 'Porte d\'entrée', s: 'locked' }];
   const app = launch(null, (clock) => ({
     loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards: garage }),
     sync: (cb) => clock.timers.set(() => cb(null, { fr, cards: fr === 1 ? garage : porte }), 100),
@@ -460,17 +461,17 @@ test('an action reply never overwrites a slot after the favorites changed (B1: n
   fr = 2;
   S.tapStatus(app.se);
   app.clock.advance(100);
-  assert.equal(app.row(3).name, 'Porte d’entrée');
+  assert.equal(app.row(3).name, 'Porte d\'entrée');
   reply(null, { k: 3, d: 'lock', n: 'Garage', s: 'locked' });
-  assert.equal(app.row(3).name, 'Porte d’entrée', 'the old reply is dropped');
+  assert.equal(app.row(3).name, 'Porte d\'entrée', 'the old reply is dropped');
   assert.equal(app.row(3).state, 'Verrouillée');
   S.tapRow(app.se, 3);
-  assert.equal(app.view().confirmName, 'Porte d’entrée', 'the confirmation names the lock that will open');
+  assert.equal(app.view().confirmName, 'Porte d\'entrée', 'the confirmation names the lock that will open');
   app.clock.advance(S.CONFIRM_GUARD_MS);
   S.confirmYes(app.se);
   assert.deepEqual(app.acts[1], { k: 3, fr: 2, confirm: true });
   reply(null, { k: 4, d: 'light', n: 'Ailleurs', s: 'on' });
-  assert.equal(app.row(3).name, 'Porte d’entrée', 'a reply for another slot is ignored');
+  assert.equal(app.row(3).name, 'Porte d\'entrée', 'a reply for another slot is ignored');
 });
 
 test('a background sync that succeeds while the error screen is open returns to the list', () => {
@@ -550,17 +551,45 @@ test('leaving the page clears every timer and ignores late replies', () => {
   assert.equal(late.se.st.cards[0].s, 'on', 'and no state change');
 });
 
-test('fr-FR, en-US and ru-RU have the same keys and placeholders, none empty', () => {
+test('fr-FR, en-US and ru-RU have the same keys and [placeholders], none empty', () => {
   const langs = ['fr-FR', 'en-US', 'ru-RU'].map((l) => [l, strings(l)]);
   const keys = Object.keys(langs[0][1]).sort();
-  const holes = (s) => (s.match(/\{\w+\}/g) || []).sort().join();
+  const holes = (s) => (s.match(/\[\w+\]/g) || []).sort().join();
   for (const [lang, s] of langs) {
     assert.deepEqual(Object.keys(s).sort(), keys, lang);
     for (const k of keys) {
       assert.ok(s[k].length > 0, `${lang}.${k} empty`);
       assert.equal(holes(s[k]), holes(FR[k]), `${lang}.${k} placeholders`);
+      assert.ok(!s[k].includes('{'), `${lang}.${k}: lite $t would consume a {placeholder}`);
+      assert.doesNotMatch(s[k], /[\u2018\u2019\u201C\u201D]/, `${lang}.${k}: typographic quote drawn full width by the lite font`);
     }
   }
+  assert.equal(FR.ago_min, 'il y a [n] min');
+});
+
+test('names get plain apostrophes (the lite font draws ’ full width)', () => {
+  for (const c of M.DEMO) assert.doesNotMatch(c.n, /[\u2018\u2019\u201C\u201D]/, c.n);
+  const app = launch(null, (clock) => ({
+    loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards: [{ k: 0, d: 'lock', n: 'Porte d\u2019entrée', s: 'locked' }] }),
+    sync() {},
+    act() {},
+    close() {},
+  }));
+  assert.equal(app.row(0).name, "Porte d'entrée");
+});
+
+test('dev.js latency slows every Mock reply, so "en cours" can be watched', () => {
+  const app = launch({ ...DASH, latency: 4000 });
+  app.clock.advance(3999);
+  assert.equal(app.view().status.text, 'Synchro…');
+  app.clock.advance(1);
+  assert.equal(app.view().status.text, "à l'instant");
+  S.tapRow(app.se, 0);
+  app.clock.advance(3999);
+  assert.equal(app.row(0).state, 'Extinction…');
+  app.clock.advance(1);
+  assert.equal(app.row(0).state, 'Éteinte');
+  assert.equal(app.row(0).hasCheck, true);
 });
 
 test('every $t key of the page exists in the three languages', () => {

@@ -24,6 +24,15 @@ function now() {
     return Date.now();
 }
 
+/** dev.js `trace`: one log line per redraw, to tell "data not updated" from "lite did not redraw". */
+function trace(v) {
+    var line = '[ha] paint ' + v.screen;
+    for (var i = 0; v.rows && i < v.rows.length; i++) {
+        line += ' r' + v.rows[i].k + '=' + v.rows[i].state + (v.rows[i].hasCheck ? '+check' : '');
+    }
+    console.info(line);
+}
+
 export default {
     data: {
         isList: false,
@@ -90,6 +99,9 @@ export default {
         }
         if (v.settings) {
             this.settings = v.settings;
+        }
+        if (DEV.trace) {
+            trace(v);
         }
         for (flag in show) {
             if (show.hasOwnProperty(flag) && !show[flag] && this[flag]) {

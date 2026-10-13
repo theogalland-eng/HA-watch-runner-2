@@ -20,11 +20,26 @@ export function agoParts(nowMs, thenMs) {
     return { key: 'ago_hour', n: Math.round(minutes / 60) };
 }
 
-/** Replaces {name} placeholders: fill('il y a {n} min', { n: 3 }) → 'il y a 3 min'. */
+/**
+ * Replaces [name] placeholders: fill('il y a [n] min', { n: 3 }) → 'il y a 3 min'. Unknown ones
+ * stay. Square brackets, because lite's $t consumes {name} itself; no RegExp (none on lite).
+ */
 export function fill(template, params) {
-    return String(template).replace(/\{(\w+)\}/g, function (all, name) {
-        return params && params[name] !== undefined ? String(params[name]) : all;
-    });
+    var s = String(template);
+    var out = '';
+    var i = 0;
+    while (i < s.length) {
+        var open = s.indexOf('[', i);
+        var close = open < 0 ? -1 : s.indexOf(']', open + 1);
+        if (close < 0) {
+            out += s.slice(i);
+            break;
+        }
+        var name = s.slice(open + 1, close);
+        out += s.slice(i, open) + (params && params[name] !== undefined ? String(params[name]) : s.slice(open, close + 1));
+        i = close + 1;
+    }
+    return out;
 }
 
 /** Fallback truncation when CSS ellipsis is not available: keeps maxChars characters, "…" included. */

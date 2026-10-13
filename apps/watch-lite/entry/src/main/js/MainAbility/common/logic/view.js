@@ -45,7 +45,7 @@ function rowsView(se, t) {
     for (var i = 0; i < se.st.cards.length; i++) {
         var card = se.st.cards[i];
         var r = rowView(card, se.st.ents[card.k]);
-        out.push({ k: card.k, name: card.n, icon: iconFile(r.icon), state: stateText(t, r), color: color(r.stateColor), check: r.check ? iconFile(r.check) : '' });
+        out.push({ k: card.k, name: card.n, icon: iconFile(r.icon), state: stateText(t, r), color: color(r.stateColor), check: iconFile(r.check || 'ic_check_24_on'), hasCheck: !!r.check });
     }
     return out;
 }

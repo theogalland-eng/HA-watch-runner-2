@@ -27,6 +27,11 @@ test('ES2015+ syntax and runtime APIs JerryScript lacks are rejected', async () 
     'export var g = globalThis;\n': 'no-restricted-globals',
     'export var t = setInterval(function () {}, 1000);\n': 'no-restricted-globals',
     'export var f = function (a) { return a?.b; };\n': 'Parsing error',
+    'export var f = function (s) { return s.replace(/x/g, "y"); };\n': 'no-restricted-syntax',
+    'export var r = new RegExp("x");\n': 'no-restricted-syntax',
+    'export var r = RegExp("x");\n': 'no-restricted-syntax',
+    'export var f = function (s) { return s.match("x"); };\n': 'no-restricted-properties',
+    'export var f = function (s) { return s.search("x"); };\n': 'no-restricted-properties',
   };
   for (const [code, rule] of Object.entries(cases)) {
     const found = await problems(code);
