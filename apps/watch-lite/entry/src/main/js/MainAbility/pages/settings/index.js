@@ -2,13 +2,13 @@ import router from '@system.router';
 import getStore from '../../common/store.js';
 
 function ensureStore() {
-    const st = getStore();
+    var st = getStore();
     if (!st.settings) {
         st.settings = {};
     }
 
     // defaults
-    const s = st.settings;
+    var s = st.settings;
     if (s.debugMode === undefined) s.debugMode = true;     // like your "Mock data on emulator"
     if (s.connectionMode === undefined) s.connectionMode = 'local'; // local/cloud (future)
     return st;
@@ -23,17 +23,17 @@ export default {
         items: []
     },
 
-    onInit() {
+    onInit: function () {
         ensureStore();
         this._buildItems();
     },
 
-    onShow() {
+    onShow: function () {
         // when coming back from About or elsewhere
         this._buildItems();
     },
 
-    onSwipe(e) {
+    onSwipe: function (e) {
         if (!e || !e.direction) return;
 
         if (e.direction === 'right') {
@@ -48,12 +48,12 @@ export default {
         }
     },
 
-    _buildItems() {
-        const store = ensureStore();
-        const s = store.settings;
+    _buildItems: function () {
+        var store = ensureStore();
+        var s = store.settings;
 
-        const debugState = s.debugMode ? 'On (mock data)' : 'Off';
-        const connectionState = (s.connectionMode === 'local')
+        var debugState = s.debugMode ? 'On (mock data)' : 'Off';
+        var connectionState = (s.connectionMode === 'local')
             ? 'Local (cloud soon)'
             : 'Cloud (soon)';
 
@@ -93,9 +93,9 @@ export default {
         ];
     },
 
-    onItem(item) {
-        const id = item && item.id ? String(item.id) : '';
-        const store = ensureStore();
+    onItem: function (item) {
+        var id = item && item.id ? String(item.id) : '';
+        var store = ensureStore();
 
         if (id === 'debug') {
             store.settings.debugMode = !store.settings.debugMode;
