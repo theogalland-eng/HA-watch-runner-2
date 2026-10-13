@@ -10,6 +10,9 @@ export const CSS_PROPS = new Set([
   'color', 'font-size', 'letter-spacing', 'text-align', 'text-overflow', 'font-family', 'line-height',
 ]);
 
+/** Smallest round screen the app must fit: the DevEco Previewer (454 px; the Runner 2 is 466). */
+export const MAX_SIZE_PX = 454;
+
 export const HML_TAGS = new Set([
   'div', 'list', 'list-item', 'stack', 'swiper', 'text', 'image', 'input', 'progress', 'marquee',
   'slider', 'switch', 'picker-view', 'chart', 'canvas', 'qrcode', 'image-animator',
@@ -35,9 +38,17 @@ export function cssProblems(text) {
     for (const decl of block[2].split(';')) {
       const prop = decl.split(':')[0].trim();
       if (prop && !CSS_PROPS.has(prop)) problems.push(`CSS property "${prop}" not supported on lite`);
+      const px = /^\s*(\d+(?:\.\d+)?)px\s*$/.exec(decl.slice(decl.indexOf(':') + 1));
+      if ((prop === 'width' || prop === 'height') && px && Number(px[1]) > MAX_SIZE_PX) {
+        problems.push(`${sel0(selector)} ${prop}: ${px[1]}px is larger than the smallest screen (${MAX_SIZE_PX} px, DevEco Previewer): use 100% and centre by alignment`);
+      }
     }
   }
   return problems;
+}
+
+function sel0(selector) {
+  return selector.split(',')[0].trim();
 }
 
 /** Problems in a lite HML file: unknown components or events (no touch events on lite). */

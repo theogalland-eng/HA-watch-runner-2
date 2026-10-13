@@ -24,5 +24,12 @@ test('lite HML: unknown components and touch events are caught', () => {
 test('lite CSS: the rule right after an @import is checked too', () => {
   const p = cssProblems("@import '../../common/styles/base.css';\n\n.root { gap: 4px; }\n.b { gap: 2px; }");
   assert.equal(p.filter((x) => x.includes('"gap"')).length, 2);
-  assert.deepEqual(cssProblems("@import 'base.css';\n.root { width: 466px; }"), []);
+  assert.deepEqual(cssProblems("@import 'base.css';\n.root { width: 340px; }"), []);
+});
+
+test('lite CSS: no fixed width or height beyond the 454 px Previewer screen', () => {
+  const p = cssProblems('.root { width: 466px; height: 466px; } .col { width: 340px; } .full { width: 100%; height: 100%; }');
+  assert.equal(p.length, 2);
+  assert.ok(p.every((x) => x.includes('454')));
+  assert.deepEqual(cssProblems('.a { width: 454px; height: 100%; margin-left: 500px; }').filter((x) => x.includes('454')), []);
 });

@@ -127,6 +127,15 @@ Un nom de favori tient sur une ligne jusqu'à environ 17 caractères ; au-delà,
 
 ## Cercle 466 × 466 et marges de sécurité
 
+**Cible : 466 × 466** (Watch GT Runner 2, et le simulateur DevEco). L'app doit aussi rester
+correcte en **454 × 454** : c'est l'écran du Previewer DevEco (`-or 454 -cr 454` dans
+`previewer.log`).
+- Les conteneurs pleine largeur sont en `100%`, et la colonne de 340 px est centrée par alignement,
+  pas par `margin-left: 63px`. En 454, elle garde 340 px et les marges latérales passent à 57 px.
+- Aucune largeur ni hauteur fixe ne dépasse 454 px : `npm run check` les refuse. Une largeur figée
+  à 466 rendait la page déplaçable de 12 px à l'horizontale dans le Previewer.
+- Les valeurs ci-dessous sont celles de la maquette, en 466.
+
 | Repère | Valeur | Règle |
 |--------|--------|-------|
 | Écran | Ø 466 px | AMOLED rond. |
@@ -330,6 +339,7 @@ avant de s'appuyer dessus.
 | Confirmation, détail, erreurs et réglages en écrans séparés | `router.replace` détruit la page avec ses minuteries et ses callbacks : une action en cours perdrait son résultat, et chaque retour à la liste rechargerait la page (et la synchro). | **Une seule page** (`pages/index`) : chaque écran est un bloc `if` (pas `show`), seuls les éléments de l'écran visible existent en mémoire. Plan B si la mémoire manque : [README de l'app](../../../apps/watch-lite/README.md#js-memory-main-criterion-and-plan-b). |
 | Apostrophe typographique ’ (« Porte d’entrée », « à l’instant ») | La police lite la dessine en pleine chasse : un trou dans le mot (vu dans le Previewer DevEco 6.1). | Apostrophe droite `'` dans les textes et la démo ; la montre normalise les noms reçus. |
 | Coche avant l'état, texte d'état sur 276 px sans coche | Pas de `if`/`else` fiable dans un `for` lite. | Structure fixe : coche affichée par `show`, texte d'état sur 246 px dans tous les cas. |
+| Colonne placée à x 63 (marge 63 px), écran de 466 px | Le Previewer DevEco simule 454 px : une largeur figée à 466 rend la page déplaçable horizontalement (vu dans DevEco 6.1). | Conteneurs en `100%`, colonne de 340 px centrée par `justify-content` / `align-items` ; `npm run check` refuse toute largeur ou hauteur > 454 px. |
 | Boutons contour ≥ 240 px de large (`min-width` + `padding`) | Pas de `min-width` en lite ✓. | Largeur fixe **280 px** (≤ 320) pour tous les boutons contour, 320 pour « Déverrouiller » de la confirmation, 200 pour « Annuler ». Textes traduits gardés courts. |
 | Couronne = défilement et retour | Rotation de la couronne transmise à la `list` ⚠ ; l'appui sur la couronne appartient au système. | Défilement tactile en repli ; retour par glissement uniquement. |
 | Bouton bas = ouvre l'app | Réglage système de l'utilisateur, hors de portée de l'app ⚠. | Le documenter pour l'utilisateur ; rien à coder. |

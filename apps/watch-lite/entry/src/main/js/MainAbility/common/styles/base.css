@@ -23,8 +23,8 @@
 .mt12 { margin-top: 12px; }
 .mt24 { margin-top: 24px; }
 
-/* Full round screen (466 × 466), black = pixels off on AMOLED. */
-.full { width: 466px; height: 466px; background-color: #000000; }
+/* Full round screen (466 px on the Runner 2, 454 in the DevEco Previewer), black = pixels off. */
+.full { width: 100%; height: 100%; background-color: #000000; }
 .center { flex-direction: column; justify-content: center; align-items: center; }
 
 /* Outline button: 2 px, radius 32, text 30 px in the colour of the target state. Fixed width: lite

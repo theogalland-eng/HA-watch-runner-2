@@ -1,22 +1,24 @@
 @import '../../common/styles/base.css';
 
-/* Layout of the screens (docs/design/watch-lite/README.md § Cercle 466 × 466 et marges). Lists
-   start/end with empty items (48 / 150 px, settings 60 / 150): list padding may not scroll on lite. */
+/* Layout of the screens (docs/design/watch-lite/README.md § Cercle 466 × 466 et marges). Full-width
+   containers are 100 % and the 340 px column is centred by alignment: the Runner 2 is 466 px wide,
+   the DevEco Previewer 454 px, and a fixed 466 px would make the page drag sideways there.
+   Lists start/end with empty items (48 / 150 px, settings 60 / 150): list padding may not scroll. */
 
-.root { width: 466px; height: 466px; background-color: #000000; flex-direction: column; }
+.root { width: 100%; height: 100%; background-color: #000000; flex-direction: column; }
 
-.gap48 { width: 466px; height: 48px; }
-.gap60 { width: 466px; height: 60px; }
-.gap150 { width: 466px; height: 150px; }
+.gap48 { width: 100%; height: 48px; }
+.gap60 { width: 100%; height: 60px; }
+.gap150 { width: 100%; height: 150px; }
 
 /* Sync indicator: 340 × 44, icon 24 + 8 + text 24, centred. */
-.status-item { width: 466px; height: 44px; }
-.status-row { width: 340px; height: 44px; margin-left: 63px; flex-direction: row; justify-content: center; align-items: center; }
+.status-item { width: 100%; height: 44px; flex-direction: row; justify-content: center; align-items: center; }
+.status-row { width: 340px; height: 44px; flex-direction: row; justify-content: center; align-items: center; }
 .status-text { margin-left: 8px; }
 
 /* Favorite row: 340 × 96, icon zone 48, gap 16, name 30/36 + state 24/30 on 276 px. */
-.row-item { width: 466px; height: 96px; }
-.row { width: 340px; height: 96px; margin-left: 63px; flex-direction: row; align-items: center; }
+.row-item { width: 100%; height: 96px; flex-direction: row; justify-content: center; align-items: center; }
+.row { width: 340px; height: 96px; flex-direction: row; align-items: center; }
 .row-texts { width: 276px; height: 66px; margin-left: 16px; flex-direction: column; }
 .row-text { width: 276px; text-overflow: ellipsis; }
 .state-line { width: 276px; height: 30px; flex-direction: row; align-items: center; }
@@ -24,8 +26,8 @@
 .state-narrow { width: 246px; text-overflow: ellipsis; }
 
 /* Settings row: 340 × 80, last row of the list. */
-.settings-item { width: 466px; height: 80px; }
-.settings-row { width: 340px; height: 80px; margin-left: 63px; flex-direction: row; align-items: center; }
+.settings-item { width: 100%; height: 80px; flex-direction: row; justify-content: center; align-items: center; }
+.settings-row { width: 340px; height: 80px; flex-direction: row; align-items: center; }
 .settings-label { width: 276px; margin-left: 16px; }
 
 /* Detail (padding top 76) and unlock confirmation (padding top 64). */
@@ -38,7 +40,7 @@
 .cancel-text { width: 200px; text-align: center; }
 
 /* Settings (screen 6): label 24/30 over value 30/36, 16 px between blocks. */
-.set-title { width: 466px; height: 52px; flex-direction: column; align-items: center; }
-.set-block { width: 466px; height: 82px; flex-direction: column; align-items: center; }
-.set-btn { width: 466px; height: 84px; flex-direction: column; align-items: center; }
+.set-title { width: 100%; height: 52px; flex-direction: column; align-items: center; }
+.set-block { width: 100%; height: 82px; flex-direction: column; align-items: center; }
+.set-btn { width: 100%; height: 84px; flex-direction: column; align-items: center; }
 .set-btn-top { margin-top: 4px; }

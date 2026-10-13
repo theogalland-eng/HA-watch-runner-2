@@ -142,10 +142,12 @@ Tested on Linux (Node 22) and also on Windows (Node 24). The tools work with nat
   - only lite CSS properties/selectors and HML components/events (no `gap`, `box-sizing`,
     descendant selectors, `touchstart`…). One limitation: `:active` is accepted on any class,
     but lite only applies it to `input[type=button]`;
+  - no fixed `width`/`height` above 454 px: the DevEco Previewer is 454 × 454, the Runner 2 466 ×
+    466. Full-width containers are `100%` and the 340 px column is centred by alignment;
   - no signing material in `build-profile.json5`.
 
 These checks do **not** replace DevEco: the build, the round previewer/simulator and the real watch
-remain manual.
+remain manual. Check the screens in **both** the Previewer (454) and the simulator (466).
 
 ## Hard limits (lite wearable)
 
