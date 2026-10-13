@@ -347,6 +347,10 @@ renvoyer (`common/logic/look.js`) :
 |------|-------|
 | `unavailable`, `unknown` | Texte « Indisponible » en gris `#6B6B6B`. L'icône est la variante grise (`_off`), ou `ic_fail_err` pour une serrure, faute de serrure grise. Le tap est ignoré. |
 | `jammed` (serrure) | `ic_fail_err` et « Bloquée » en rouge. Le tap verrouille. |
+| `locking`, `unlocking`, `opening` (serrure) ; `opening`, `closing` (volet) | L'appareil est en mouvement : HA renvoie souvent `locking` juste après l'appel. La ligne s'affiche comme « en cours » (`ic_pending_act`, « Verrouillage… », « Déverrouillage… », « Ouverture… », « Fermeture… », en bleu), jamais comme l'état final. Pas de coche, tap ignoré, pas de bouton dans le détail ; la ligne retrouve son aspect normal au prochain rafraîchissement. |
+| `open` (serrure) | Comme `unlocked` : « Déverrouillée ». |
+
+Une entité indisponible ou en mouvement n'a pas de bouton d'action dans le détail.
 
 ### Autres écarts (contrat P2P, contenu)
 

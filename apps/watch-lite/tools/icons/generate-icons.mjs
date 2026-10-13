@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Generates the 26 watch icons (PNG, one per colour) from the design's SVG paths.
-// Deterministic and dependency-free: `npm run icons` then `git diff --exit-code` must show nothing.
+// Deterministic and dependency-free. The guarantee is pixel-identical output (checked by
+// test/icons.test.mjs on every run); the PNG bytes are also identical as long as Node's bundled zlib
+// is the same, so after `npm run icons` a `git diff` on the same Node major shows nothing.
 //
 // Usage: node icons/generate-icons.mjs [outDir]
 import { mkdirSync, writeFileSync } from 'node:fs';

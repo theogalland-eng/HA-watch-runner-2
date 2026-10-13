@@ -12,14 +12,14 @@ test('cache round-trips fr, timestamp and cards in order', () => {
     { k: 0, d: 'light', n: 'Salon', s: 'on' },
   ], 1_700_000_000_000);
   const text = C.serializeCache(st);
-  assert.deepEqual(C.parseCache(text), { fr: 42, at: 1_700_000_000_000, cards: st.cards });
+  assert.deepEqual(C.parseCache(text), { fr: 42, syncedAt: 1_700_000_000_000, cards: st.cards });
 });
 
 test('corrupt, empty or foreign cache texts mean "no cache"', () => {
-  for (const bad of [undefined, '', '{', 'null', '[]', '{"f":1,"at":1,"c":[]}', '{"f":2,"c":[]}', '{"f":2,"at":"x","c":[]}']) {
+  for (const bad of [undefined, '', '{', 'null', '[]', '{"f":1,"t":1,"c":[]}', '{"f":2,"c":[]}', '{"f":2,"t":"x","c":[]}']) {
     assert.equal(C.parseCache(bad), null, String(bad));
   }
-  const parsed = C.parseCache('{"f":2,"fr":1,"at":5,"c":[[0,"light","Salon","on"],[1,"light"],"x",[99,"light","Out","on"]]}');
+  const parsed = C.parseCache('{"f":2,"fr":1,"t":5,"c":[[0,"light","Salon","on"],[1,"light"],"x",[99,"light","Out","on"]]}');
   assert.deepEqual(parsed.cards, [{ k: 0, d: 'light', n: 'Salon', s: 'on' }]);
 });
 

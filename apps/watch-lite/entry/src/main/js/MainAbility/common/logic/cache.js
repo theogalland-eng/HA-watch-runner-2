@@ -15,11 +15,11 @@ export function serializeCache(state) {
         var c = state.cards[i];
         rows.push([c.k, c.d, c.n, c.s]);
     }
-    var text = JSON.stringify({ f: CACHE_FORMAT, fr: state.fr, at: state.lastSyncAt, c: rows });
+    var text = JSON.stringify({ f: CACHE_FORMAT, fr: state.fr, t: state.lastSyncAt, c: rows });
     return utf8Bytes(text) <= MAX_CACHE_BYTES ? text : null;
 }
 
-/** Parses a cache text; null when absent, corrupt or from another format (then: no cache). */
+/** Parses a cache text into { fr, syncedAt, cards }; null when absent, corrupt or from another format. */
 export function parseCache(text) {
     if (typeof text !== 'string' || text.length === 0) {
         return null;
@@ -30,7 +30,7 @@ export function parseCache(text) {
     } catch (e) {
         return null;
     }
-    if (!o || o.f !== CACHE_FORMAT || !o.c || typeof o.c.length !== 'number' || typeof o.at !== 'number') {
+    if (!o || o.f !== CACHE_FORMAT || !o.c || typeof o.c.length !== 'number' || typeof o.t !== 'number') {
         return null;
     }
     var cards = [];
@@ -40,5 +40,5 @@ export function parseCache(text) {
             cards.push({ k: r[0], d: r[1], n: r[2], s: r[3] });
         }
     }
-    return { fr: o.fr === undefined ? null : o.fr, at: o.at, cards: normalizeCards(cards) };
+    return { fr: o.fr === undefined ? null : o.fr, syncedAt: o.t, cards: normalizeCards(cards) };
 }

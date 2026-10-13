@@ -21,5 +21,5 @@ test('companion declared in supportLists as "package:SHA-256" (no colons, ≤ 25
 test('committed build-profile.json5 carries no signing material', () => {
   const profile = readFileSync(join(APP, 'build-profile.json5'), 'utf8');
   assert.match(profile, /"signingConfigs"\s*:\s*\[\s*\]/);
-  assert.doesNotMatch(profile, /"(storeFile|storePassword|keyPassword|certpath|profile)"\s*:/);
+  assert.doesNotMatch(profile, /"?\b(storeFile|storePassword|keyPassword|certpath|profile)\b"?\s*:/);
 });

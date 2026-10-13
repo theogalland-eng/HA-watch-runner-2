@@ -77,7 +77,8 @@ npm run icons     # regenerate the 26 icons from the design paths (then: git dif
   - the 26 icons, each < 1 KB;
   - decoded RGBA and estimated HAP size;
   - only lite CSS properties/selectors and HML components/events (no `gap`, `box-sizing`,
-    descendant selectors, `touchstart`…);
+    descendant selectors, `touchstart`…). One limitation: `:active` is accepted on any class,
+    but lite only applies it to `input[type=button]`;
   - no signing material in `build-profile.json5`.
 
 These checks do **not** replace DevEco: the build, the round previewer/simulator and the real watch

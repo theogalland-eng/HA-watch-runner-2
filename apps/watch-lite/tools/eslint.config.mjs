@@ -33,6 +33,9 @@ export default [
       },
     },
     plugins: ES5.plugins,
+    // Aggressive: also report ES2015+ prototype methods when the receiver's type is unknown
+    // (e.g. `card.n.includes(x)`, `list.find(fn)`), which would throw on JerryScript.
+    settings: { 'es-x': { aggressive: true } },
     rules: {
       ...ES5.rules,
       'es-x/no-modules': 'off',

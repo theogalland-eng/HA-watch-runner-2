@@ -107,14 +107,22 @@ test('sensors are read-only; unknown slots are ignored', () => {
   assert.equal(S.startAction(st, 9, 'on'), 0);
 });
 
-test('a resync keeps the feedback of rows still present and drops removed ones', () => {
+test('a resync with the same favorites revision keeps row feedback; a new revision drops it', () => {
   const st = S.createState();
   S.applySync(st, 1, FIVE, 0);
   S.startAction(st, 0, 'off');
   S.startAction(st, 4, 'locked');
-  S.applySync(st, 2, FIVE.slice(0, 3), 10);
-  assert.equal(st.ents[0].phase, 'pending');
-  assert.equal(st.ents[4], undefined);
+  S.applySync(st, 1, FIVE.slice(0, 3), 10);
+  assert.equal(st.ents[0].phase, 'pending', 'same fr: slot 0 is still the same light');
+  assert.equal(st.ents[4], undefined, 'removed row');
+
+  // New revision: slot 0 now holds a locked lock. The old "Extinction…" must not show on it,
+  // and nothing may claim an unlock is in progress.
+  const tok = st.ents[0].tok;
+  S.applySync(st, 2, [{ k: 0, d: 'lock', n: 'Porte d’entrée', s: 'locked' }], 20);
+  assert.deepEqual(st.ents, {});
+  assert.equal(S.actionSucceeded(st, 0, tok, 'off'), false, 'late reply of the old action ignored');
+  assert.equal(S.findCard(st, 0).s, 'locked');
 });
 
 test('single-entity refresh replaces the matching slot only', () => {

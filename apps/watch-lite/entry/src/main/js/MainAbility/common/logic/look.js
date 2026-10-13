@@ -8,6 +8,25 @@ export var DOMAINS = ['light', 'switch', 'lock', 'cover', 'scene', 'sensor'];
 
 var UNAVAILABLE = { unavailable: true, unknown: true };
 
+/**
+ * HA states where the device is moving between two states (HA usually reports `locking` right after
+ * a lock call). Shown as "en cours" with the transition text; never as the end state.
+ */
+var TRANSIENT = {
+    lock: { locking: 'pend_lock', unlocking: 'pend_unlock', opening: 'pend_unlock' },
+    cover: { opening: 'pend_open', closing: 'pend_close' }
+};
+
+function transientKey(d, s) {
+    var t = TRANSIENT[d];
+    return t && t[s] ? t[s] : null;
+}
+
+/** Whether the entity cannot be acted on right now (unavailable, or moving between states). */
+export function isBusy(card) {
+    return !!UNAVAILABLE[card.s] || transientKey(card.d, card.s) !== null;
+}
+
 /** State the action is heading to (drives the "en cours" text). */
 export function targetOf(d, s) {
     if (d === 'light' || d === 'switch') {
@@ -30,7 +49,7 @@ export function tapAction(card) {
     if (card.d === 'sensor') {
         return 'detail';
     }
-    if (UNAVAILABLE[card.s]) {
+    if (isBusy(card)) {
         return 'none';
     }
     if (card.d === 'lock' && card.s === 'locked') {
@@ -45,6 +64,10 @@ export function stateLook(card) {
     var s = card.s;
     // Not drawn in the design: HA "unavailable"/"unknown". Grey text; the icon is the grey "off"
     // variant, or the red alert for a lock (no grey lock exists, and a lock of unknown state matters).
+    var moving = transientKey(d, s);
+    if (moving) {
+        return { icon: 'ic_pending_act', iconColor: 'act', textKey: moving, text: null, stateColor: 'act' };
+    }
     if (UNAVAILABLE[s] && d !== 'sensor') {
         if (d === 'lock') {
             return { icon: 'ic_fail_err', iconColor: 'err', textKey: 'st_unavailable', text: null, stateColor: 'off' };
@@ -68,7 +91,7 @@ export function stateLook(card) {
         if (s === 'jammed') {
             return { icon: 'ic_fail_err', iconColor: 'err', textKey: 'st_jammed', text: null, stateColor: 'err' };
         }
-        return { icon: 'ic_unlock_unlock', iconColor: 'unlock', textKey: 'st_unlocked', text: null, stateColor: 'unlock' };
+        return { icon: 'ic_unlock_unlock', iconColor: 'unlock', textKey: 'st_unlocked', text: null, stateColor: 'unlock' }; // unlocked, open
     }
     if (d === 'cover') {
         return s === 'open'
@@ -157,7 +180,9 @@ export function rowView(card, ent) {
         v.textKey = failKey(ent.err);
         v.text = null;
         v.stateColor = 'err';
-    } else if (phase === 'ok') {
+    } else if (phase === 'ok' && !transientKey(card.d, card.s)) {
+        // Success shows the new state + check; a device still moving (e.g. "locking") keeps its
+        // "en cours" look without a check until a later refresh.
         if (card.d === 'scene') {
             v.textKey = 'st_scene_done';
             v.stateColor = 'act';
@@ -169,11 +194,15 @@ export function rowView(card, ent) {
 
 /**
  * Detail screen's single main button, in the colour of the state it leads to (design 4a/4b):
- * { key, color, border } or null for a read-only sensor. "Éteindre"/"Fermer" stay neutral.
+ * { key, color, border }, or null for a read-only sensor and for an entity that cannot be acted
+ * on right now (unavailable, or moving). "Éteindre"/"Fermer" stay neutral.
  */
 export function detailButton(card) {
     var d = card.d;
     var s = card.s;
+    if (isBusy(card)) {
+        return null;
+    }
     if (d === 'light' || d === 'switch') {
         return s === 'on'
             ? { key: 'btn_turn_off', color: 'txt', border: 'off' }

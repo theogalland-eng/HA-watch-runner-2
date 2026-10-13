@@ -120,6 +120,8 @@ export function flattenPath(d) {
       cmd = r.command();
     } else if (!cmd) {
       throw new Error(`Path must start with a command: ${d}`);
+    } else if (PARAMS[cmd.toUpperCase()] === 0) {
+      throw new Error(`Unexpected number after ${cmd} in path: ${d}`); // would loop forever
     } else if (cmd === 'M') {
       cmd = 'L'; // implicit lineto after moveto
     } else if (cmd === 'm') {

@@ -74,18 +74,26 @@ export function startSync(state) {
     return true;
 }
 
-/** Applies a full favorites list (SYNC_RESPONSE or cache). Feedback of rows still present is kept. */
+/**
+ * Applies a full favorites list (SYNC_RESPONSE or cache). Row feedback survives only if the
+ * favorites revision is unchanged: with a new `fr`, a slot may now hold another entity, so all
+ * feedback is dropped (and a late reply to the old action is ignored by its token).
+ */
 export function applySync(state, fr, cards, now) {
+    var nextFr = fr === undefined ? null : fr;
+    var sameFavorites = nextFr !== null && nextFr === state.fr;
     state.cards = normalizeCards(cards);
-    state.fr = fr === undefined ? null : fr;
+    state.fr = nextFr;
     state.lastSyncAt = now;
     state.syncing = false;
     state.statusErr = null;
     var kept = {};
-    for (var i = 0; i < state.cards.length; i++) {
-        var k = state.cards[i].k;
-        if (state.ents[k]) {
-            kept[k] = state.ents[k];
+    if (sameFavorites) {
+        for (var i = 0; i < state.cards.length; i++) {
+            var k = state.cards[i].k;
+            if (state.ents[k]) {
+                kept[k] = state.ents[k];
+            }
         }
     }
     state.ents = kept;

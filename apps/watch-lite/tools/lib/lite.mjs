@@ -17,7 +17,11 @@ export const HML_TAGS = new Set([
 
 export const HML_EVENTS = new Set(['click', 'longpress', 'swipe', 'scrollend', 'scrolltop', 'scrollbottom', 'change']);
 
-/** Problems in a lite CSS file: unsupported selectors (only .class, #id, :active, :checked) or properties. */
+/**
+ * Problems in a lite CSS file: unsupported selectors (only .class, #id, :active, :checked) or
+ * properties. Limitation: `:active` / `:checked` are accepted on any class here, but lite only
+ * honours them on `input[type=button]` (resp. checkbox/radio), for background-color/image only.
+ */
 export function cssProblems(text) {
   const problems = [];
   const css = text.replace(/\/\*[\s\S]*?\*\//g, '');

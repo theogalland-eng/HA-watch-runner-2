@@ -26,6 +26,24 @@ test('states not drawn in the design stay readable (unavailable, jammed)', () =>
   assert.equal(L.stateLook(card('lock', 'jammed')).textKey, 'st_jammed');
 });
 
+test('transient states show as "en cours", never as the end state (security of locks)', () => {
+  const locking = L.stateLook(card('lock', 'locking'));
+  assert.deepEqual(locking, { icon: 'ic_pending_act', iconColor: 'act', textKey: 'pend_lock', text: null, stateColor: 'act' });
+  assert.equal(L.stateLook(card('lock', 'unlocking')).textKey, 'pend_unlock');
+  assert.equal(L.stateLook(card('lock', 'opening')).textKey, 'pend_unlock');
+  assert.equal(L.stateLook(card('lock', 'open')).textKey, 'st_unlocked');
+  assert.equal(L.stateLook(card('cover', 'opening')).textKey, 'pend_open');
+  assert.equal(L.stateLook(card('cover', 'closing')).textKey, 'pend_close');
+  // HA confirmed the call but the lock is still moving: no "Déverrouillée", no check yet.
+  const ok = L.rowView(card('lock', 'locking'), { phase: 'ok' });
+  assert.equal(ok.textKey, 'pend_lock');
+  assert.equal(ok.check, null);
+  for (const s of ['locking', 'unlocking', 'opening']) {
+    assert.equal(L.tapAction(card('lock', s)), 'none', s);
+    assert.equal(L.detailButton(card('lock', s)), null, s);
+  }
+});
+
 test('one tap = one action, except unlocking (confirmation) and sensors (detail)', () => {
   assert.equal(L.tapAction(card('light', 'on')), 'run');
   assert.equal(L.tapAction(card('lock', 'unlocked')), 'run', 'locking stays immediate');
@@ -70,10 +88,11 @@ test('detail button takes the colour of the state it leads to; sensors have none
   assert.equal(L.detailButton(card('cover', 'closed')).key, 'btn_open');
   assert.equal(L.detailButton(card('scene', 'idle')).color, 'act');
   assert.equal(L.detailButton(card('sensor', '21')), null);
+  assert.equal(L.detailButton(card('light', 'unavailable')), null, 'no "Allumer" when the tap is ignored');
 });
 
 test('every icon the logic can return exists among the 26 generated PNGs', () => {
-  const states = ['on', 'off', 'locked', 'unlocked', 'jammed', 'open', 'closed', 'idle', 'unavailable', 'unknown', '21,5 °C'];
+  const states = ['on', 'off', 'locked', 'unlocked', 'locking', 'unlocking', 'opening', 'closing', 'jammed', 'open', 'closed', 'idle', 'unavailable', 'unknown', '21,5 °C'];
   const phases = [null, { phase: 'pending', to: 'on' }, { phase: 'fail', err: 'ha' }, { phase: 'ok' }];
   for (const d of L.DOMAINS) {
     for (const s of states) {

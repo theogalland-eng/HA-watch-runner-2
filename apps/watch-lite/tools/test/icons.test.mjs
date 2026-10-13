@@ -45,7 +45,8 @@ test('regenerating gives the same pixels as the committed icons (reproducible)',
   }
 });
 
-test('rendering is deterministic run to run (byte-identical)', () => {
+test('rendering is deterministic within a Node install (byte-identical renders)', () => {
+  // Pixels are the cross-machine guarantee (previous test); bytes also depend on Node's zlib build.
   for (const icon of ICONS.slice(0, 5)) assert.ok(renderIcon(icon).equals(renderIcon(icon)));
 });
 
@@ -55,6 +56,15 @@ test('path flattening handles arcs, relative commands and closepath', () => {
   for (const [x, y] of circle) assert.ok(Math.abs(Math.hypot(x - 12, y - 12) - 10) < 1e-6);
   const xs = circle.map((p) => p[0]);
   assert.ok(Math.abs(Math.min(...xs) - 2) < 0.05 && Math.abs(Math.max(...xs) - 22) < 0.05);
+  // Asymmetric arc (the sync icon's first stroke): sweep=1, small arc from (20,12) to (6,17.3) on a
+  // radius-8 circle centred near (12,12) must pass *below* the centre (y > 12). Inverting sweep or
+  // large-arc would send it above.
+  const [sync] = flattenPath('M20 12a8 8 0 0 1-14 5.3');
+  const mid = sync[Math.floor(sync.length / 2)];
+  assert.ok(mid[1] > 12, `arc midpoint ${mid}`);
+  for (const [x, y] of sync) assert.ok(Math.abs(Math.hypot(x - 12, y - 12) - 8) < 0.2, `${x},${y} on the circle`);
+  // A number after z must be an error, not an endless loop.
+  assert.throws(() => flattenPath('M1 1L2 2z3 3'), /Unexpected number/);
   // Implicit lineto pairs after l and an absolute H/V.
   const [poly] = flattenPath('M1 1l1 1 1 1H10V20');
   assert.deepEqual(poly, [[1, 1], [2, 2], [3, 3], [10, 3], [10, 20]]);

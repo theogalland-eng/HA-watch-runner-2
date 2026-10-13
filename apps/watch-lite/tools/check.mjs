@@ -110,7 +110,7 @@ for (const f of files.filter((x) => x.endsWith('.hml'))) {
 
 // ---- 5. No signing material committed -----------------------------------------------------------
 const profile = readFileSync(join(APP, 'build-profile.json5'), 'utf8');
-if (!/"signingConfigs"\s*:\s*\[\s*\]/.test(profile) || /"(storeFile|storePassword|keyPassword|certpath|profile)"\s*:/.test(profile)) {
+if (!/"signingConfigs"\s*:\s*\[\s*\]/.test(profile) || /"?\b(storeFile|storePassword|keyPassword|certpath|profile)\b"?\s*:/.test(profile)) {
   errors.push('build-profile.json5 contains signing material: keep it local (see apps/watch-lite/README.md § Signature)');
 }
 
