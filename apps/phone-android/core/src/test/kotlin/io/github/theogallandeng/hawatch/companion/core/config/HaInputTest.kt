@@ -39,6 +39,13 @@ class HaInputTest {
     }
 
     @Test
+    fun `non-ASCII characters pasted with the token are rejected`() {
+        assertNull("zero-width space", HaInput.normalizeToken("abc\u200Bdef"))
+        assertNull("ellipsis", HaInput.normalizeToken("abc…"))
+        assertNull("non-breaking space", HaInput.normalizeToken("abc\u00A0def"))
+    }
+
+    @Test
     fun `settings never print the token`() {
         val s = CompanionSettings("https://ha.example.org", "test-token-value", listOf("light.a"))
         assertEquals(false, s.toString().contains("test-token-value"))

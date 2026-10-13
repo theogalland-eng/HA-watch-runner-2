@@ -58,10 +58,14 @@ class OkHttpHaClient(
     private fun url(pathSegments: String): HttpUrl = baseUrl.newBuilder().addPathSegments(pathSegments).build()
 
     private fun request(url: HttpUrl): Request.Builder =
-        Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer $token")
-            .header("Accept", "application/json")
+        try {
+            Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/json")
+        } catch (e: IllegalArgumentException) { // OkHttp rejects non-ASCII header values (message is redacted)
+            throw HaException.InvalidToken()
+        }
 
     private inline fun <T> decode(block: () -> T): T =
         try {

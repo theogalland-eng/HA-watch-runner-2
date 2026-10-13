@@ -5,7 +5,9 @@ import io.github.theogallandeng.hawatch.companion.core.TEST_TOKEN
 import io.github.theogallandeng.hawatch.companion.core.config.CompanionConfig
 import io.github.theogallandeng.hawatch.companion.core.config.CompanionSettings
 import io.github.theogallandeng.hawatch.companion.core.haState
+import io.github.theogallandeng.hawatch.companion.core.ha.HaClient
 import io.github.theogallandeng.hawatch.companion.core.ha.HaClientFactory
+import io.github.theogallandeng.hawatch.companion.core.ha.HaState
 import io.github.theogallandeng.hawatch.companion.core.ha.OkHttpHaClient
 import io.github.theogallandeng.hawatch.companion.core.mapping.EntityCardMapper
 import io.github.theogallandeng.hawatch.companion.core.protocol.EntityCard
@@ -149,6 +151,14 @@ class WatchRequestHandlerTest {
     }
 
     @Test
+    fun `sync leaves out an entity that fails on its own while others succeed`() = runBlocking {
+        route("GET /api/states/switch.router") { MockResponse().setResponseCode(500) }
+        val reply = parse(handler().handle("""{"v":1,"id":"s","type":"SYNC_REQUEST"}"""))
+        assertEquals("SYNC_RESPONSE", reply.str("type"))
+        assertEquals(listOf("light.kitchen", "lock.front_door"), cards(reply).map { it.entityId })
+    }
+
+    @Test
     fun `sync answers ACK timeout when nothing arrives before the deadline`() = runBlocking {
         listOf("light.kitchen", "switch.router", "lock.front_door").forEach { id ->
             route("GET /api/states/$id") { MockResponse().setBody("{}").setHeadersDelay(2, TimeUnit.SECONDS) }
@@ -268,6 +278,44 @@ class WatchRequestHandlerTest {
         assertEquals("ACK", reply.str("type"))
         assertEquals("companion not configured", reply.str("error"))
         assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `a stored token with non-ASCII characters yields an ACK, never a crash`() = runBlocking {
+        val h = WatchRequestHandler(
+            config = { CompanionSettings(server.url("/").toString(), "abc\u200Bdef", favorites) },
+            clientFactory = OkHttpHaClient.factory(OkHttpClient()),
+            mapper = EntityCardMapper(),
+        )
+        val sync = parse(h.handle("""{"v":1,"id":"s","type":"SYNC_REQUEST"}"""))
+        assertEquals("ACK", sync.str("type"))
+        assertEquals("invalid token", sync.str("error"))
+        val call = parse(h.handle("""{"v":1,"id":"c","type":"CALL_SERVICE","domain":"light","service":"turn_off","data":{"entity_id":"light.kitchen"}}"""))
+        assertEquals("invalid token", call.str("error"))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `an unexpected exception becomes ACK internal error`() = runBlocking {
+        val broken = object : HaClient by FakeHaClient() {
+            override suspend fun getState(entityId: String): HaState = throw IllegalStateException("boom")
+            override suspend fun callService(domain: String, service: String, data: Map<String, String>) =
+                throw IllegalStateException("boom")
+        }
+        val h = WatchRequestHandler(
+            config = { CompanionSettings("https://ha.example.org", TEST_TOKEN, favorites) },
+            clientFactory = HaClientFactory { _, _ -> broken },
+            mapper = EntityCardMapper(),
+        )
+        for (msg in listOf(
+            """{"v":1,"id":"a","type":"SYNC_REQUEST"}""",
+            """{"v":1,"id":"b","type":"SYNC_ENTITY_REQUEST","entity_id":"light.kitchen"}""",
+            """{"v":1,"id":"c","type":"CALL_SERVICE","domain":"light","service":"turn_off","data":{"entity_id":"light.kitchen"}}""",
+        )) {
+            val reply = parse(h.handle(msg))
+            assertEquals("ACK", reply.str("type"))
+            assertEquals("internal error", reply.str("error"))
+        }
     }
 
     @Test

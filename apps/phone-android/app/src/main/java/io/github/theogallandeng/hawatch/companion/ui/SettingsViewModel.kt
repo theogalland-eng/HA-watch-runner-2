@@ -94,8 +94,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             null
         }
+        if (newToken != null && !graph.tokens.save(newToken)) return fail(UiText(R.string.error_token_store))
         graph.settings.baseUrl = url
-        newToken?.let { graph.tokens.save(it) }
         _state.update {
             it.copy(
                 urlInput = url,

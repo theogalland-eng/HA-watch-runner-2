@@ -26,6 +26,7 @@
     <string name="error_url_not_https">Нужен HTTPS: токен не должен передаваться открытым текстом</string>
     <string name="error_url_malformed">Неверный адрес</string>
     <string name="error_token_invalid">Введите корректный токен</string>
+    <string name="error_token_store">Не удалось надёжно сохранить токен на этом телефоне</string>
     <string name="error_not_configured">Сначала сохраните адрес и токен</string>
     <string name="error_unauthorized">Home Assistant отклонил токен (%1$d)</string>
     <string name="error_not_found">API Home Assistant не найден по этому адресу (404)</string>

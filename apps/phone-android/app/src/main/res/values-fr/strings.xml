@@ -26,6 +26,7 @@
     <string name="error_url_not_https">HTTPS obligatoire : le jeton ne doit jamais circuler en clair</string>
     <string name="error_url_malformed">URL invalide</string>
     <string name="error_token_invalid">Saisissez un jeton valide</string>
+    <string name="error_token_store">Impossible de stocker le jeton de façon sécurisée sur ce téléphone</string>
     <string name="error_not_configured">Enregistrez d\'abord l\'URL et le jeton</string>
     <string name="error_unauthorized">Jeton refusé par Home Assistant (%1$d)</string>
     <string name="error_not_found">API Home Assistant introuvable à cette URL (404)</string>

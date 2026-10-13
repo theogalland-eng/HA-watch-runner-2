@@ -20,6 +20,7 @@ fun HaException.toUiText(): UiText = when (this) {
     is HaException.Timeout -> UiText(R.string.error_timeout)
     is HaException.Unreachable -> UiText(R.string.error_unreachable)
     is HaException.BadResponse -> UiText(R.string.error_bad_response)
+    is HaException.InvalidToken -> UiText(R.string.error_token_invalid)
 }
 
 fun HaInput.UrlError.toUiText(): UiText = when (this) {

@@ -17,6 +17,7 @@ import io.github.theogallandeng.hawatch.companion.core.bridge.WatchPeer
 import io.github.theogallandeng.hawatch.companion.core.bridge.WatchTransport
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -120,16 +121,21 @@ class WearEngineTransport(
 
     private suspend fun deliver(device: Device, message: Message) {
         suspendCancellableCoroutine { cont ->
+            // onSendResult (binder thread) and the Task failure (main thread) may both fire:
+            // only the first one may resume the continuation.
+            val done = AtomicBoolean(false)
             p2p.send(device, message, object : SendCallback {
                 override fun onSendResult(resultCode: Int) {
-                    if (!cont.isActive) return
+                    if (!done.compareAndSet(false, true)) return
                     if (resultCode == WearEngineErrorCode.ERROR_CODE_COMM_SUCCESS) cont.resume(Unit)
                     else cont.resumeWithException(IOException("Wear Engine send failed: $resultCode"))
                 }
 
                 override fun onSendProgress(progress: Long) = Unit
             }).addOnFailureListener {
-                if (cont.isActive) cont.resumeWithException(IOException("Wear Engine send failed: ${wearErrorCode(it)}"))
+                if (done.compareAndSet(false, true)) {
+                    cont.resumeWithException(IOException("Wear Engine send failed: ${wearErrorCode(it)}"))
+                }
             }
         }
     }

@@ -148,6 +148,14 @@ class OkHttpHaClientTest {
     }
 
     @Test
+    fun `a token that cannot go in a header is a typed error, not a crash`() = runBlocking {
+        val bad = OkHttpHaClient(server.url("/"), "abc\u200Bdef", OkHttpClient())
+        val e = assertThrows<HaException.InvalidToken> { bad.checkApi() }
+        assertEquals("invalid token", e.watchMessage)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     fun `error messages never contain the token or the host`() = runBlocking {
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))

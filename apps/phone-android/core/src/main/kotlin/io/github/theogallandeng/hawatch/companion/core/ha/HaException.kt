@@ -17,4 +17,7 @@ sealed class HaException(val watchMessage: String) : Exception(watchMessage) {
     class Unreachable : HaException("HA unreachable")
 
     class BadResponse : HaException("HA bad response")
+
+    /** The stored token cannot even be put in an HTTP header (e.g. non-ASCII characters). */
+    class InvalidToken : HaException("invalid token")
 }

@@ -18,13 +18,13 @@ class CompanionBridge(
     fun start() {
         transport.start { message ->
             scope.launch {
-                val reply = handler.handle(message.payload) ?: return@launch
                 try {
+                    val reply = handler.handle(message.payload) ?: return@launch
                     transport.send(message.peer, reply)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    logger.log("reply failed: ${e.javaClass.simpleName}")
+                    logger.log("request/reply failed: ${e.javaClass.simpleName}")
                 }
             }
         }

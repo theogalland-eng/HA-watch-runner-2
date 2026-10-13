@@ -67,7 +67,9 @@ The watch side only needs an icon or colour for the new domain.
 
 Other properties:
 - No WebSocket and no polling.
-- Replies leave in under 6.5 s (the watch gives up at 8 s), and a slow sync returns partial data.
+- Replies leave in under 6.5 s (the watch gives up at 8 s). A slow sync returns partial data:
+  favorites that time out or fail individually are left out. See
+  [p2p-protocol.md](../../docs/p2p-protocol.md#companion-behaviour-v1-clarifications).
 - Idle HTTPS sockets are closed after 60 s.
 - A `SYNC_RESPONSE` for 10 favorites stays under 3 KB (checked by a unit test).
 
@@ -199,6 +201,15 @@ The app's **HyperOS / MIUI** section has buttons that open both apps' settings p
 - **Watches paired after the service started.** Receivers are registered for every watch bonded
   when the service starts or when Huawei Health reconnects. A watch paired later is picked up the
   next time the companion app is opened.
+- **Watch disconnected at boot (to test on the device).** If Wear Engine refuses to register a
+  receiver for a bonded but disconnected watch, for example right after a phone reboot, the bridge
+  stays silent until the companion app is opened.
+  - **How to test:** reboot the phone with the watch away, bring the watch back, and open the watch
+    app without touching the phone. Run `adb logcat -s HaCompanion` and look for
+    `receiver registration failed: 16`.
+  - **If it happens:** the event-driven fix is the SDK's `MonitorClient` with
+    `MonitorItem.MONITOR_ITEM_CONNECTION` (re-register on connect, still with no polling). It is not
+    wired yet because it cannot be verified without the hardware.
 - **Certificates.** Self-signed HA certificates are not supported; use a publicly trusted
   certificate (e.g. Let's Encrypt via DuckDNS).
 - **Dependency versions.** They are pinned to versions that work with compileSdk 35. Lint reports

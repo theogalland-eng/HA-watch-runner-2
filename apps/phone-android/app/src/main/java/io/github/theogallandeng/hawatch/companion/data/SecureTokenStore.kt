@@ -34,12 +34,13 @@ class SecureTokenStore(context: Context) {
             String(cipher.doFinal(Base64.decode(ciphertext, Base64.NO_WRAP)), Charsets.UTF_8)
         } catch (e: GeneralSecurityException) {
             null
-        } catch (e: IllegalArgumentException) {
+        } catch (e: RuntimeException) { // bad Base64, or ProviderException from some Keystore implementations
             null
         }
     }
 
-    fun save(token: String) {
+    /** Returns false if the Keystore could not encrypt (nothing is written then). */
+    fun save(token: String): Boolean = try {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val ciphertext = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
@@ -47,6 +48,11 @@ class SecureTokenStore(context: Context) {
             .putString(KEY_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
             .putString(KEY_CIPHERTEXT, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
             .apply()
+        true
+    } catch (e: GeneralSecurityException) {
+        false
+    } catch (e: RuntimeException) { // ProviderException
+        false
     }
 
     fun clear() {

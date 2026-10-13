@@ -159,8 +159,16 @@ stays `1`. Watch apps can rely on them.
   - `SYNC_ENTITY_REQUEST` → one `GET /api/states/<id>`;
   - `CALL_SERVICE` → one `POST /api/services/<domain>/<service>`.
 
-  It replies within about 6.5 s. On a slow sync, entities not fetched by then are left out (partial
-  list).
+  It replies within about 6.5 s.
+- **Partial sync.** The companion prefers fast partial data. A favorite is left out of
+  `SYNC_RESPONSE.cards` in three cases:
+  - it no longer exists in HA (404);
+  - it was not fetched before the deadline;
+  - it failed on its own (network or HTTP error) while other favorites succeeded.
+
+  If **no** card can be fetched, the reply is an `ACK { ok: false }` instead, and so is any auth
+  failure. A watch that caches cards should therefore treat a favorite missing from one
+  `SYNC_RESPONSE` as "unknown right now", not necessarily as deleted.
 - **Actions.** `primary` is chosen from the current state and `secondary` is `[]` (short messages):
 
   | Domain | State | `primary.service` |
@@ -189,6 +197,8 @@ stays `1`. Watch apps can rely on them.
   | `HA timeout` | Home Assistant did not answer in time |
   | `HA unreachable` | Home Assistant is offline, the URL is wrong, or there is no network |
   | `HA bad response` | The reply was not the expected JSON |
+  | `invalid token` | The stored token cannot be sent (e.g. it contains non-ASCII characters) |
+  | `internal error` | Unexpected failure in the companion; the watch still gets a reply |
   | `timeout` | The 6.5 s reply deadline was hit |
   | `not allowed` | Refused by the `CALL_SERVICE` guard above |
   | `unsupported type` | Unknown message `type` |

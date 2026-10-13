@@ -29,6 +29,7 @@
     <string name="error_url_not_https">HTTPS is required: the token must never travel in clear text</string>
     <string name="error_url_malformed">Invalid URL</string>
     <string name="error_token_invalid">Enter a valid token</string>
+    <string name="error_token_store">Could not store the token securely on this phone</string>
     <string name="error_not_configured">Save the URL and the token first</string>
     <string name="error_unauthorized">Token rejected by Home Assistant (%1$d)</string>
     <string name="error_not_found">Home Assistant API not found at this URL (404)</string>

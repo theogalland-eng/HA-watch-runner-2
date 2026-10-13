@@ -16,6 +16,7 @@ import io.github.theogallandeng.hawatch.companion.appGraph
 import io.github.theogallandeng.hawatch.companion.core.bridge.CompanionBridge
 import io.github.theogallandeng.hawatch.companion.ui.MainActivity
 import io.github.theogallandeng.hawatch.companion.wear.WearEngineTransport
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,7 +31,10 @@ import kotlinx.coroutines.cancel
  */
 class WatchBridgeService : Service() {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO +
+            CoroutineExceptionHandler { _, e -> appGraph.logger.log("uncaught: ${e.javaClass.simpleName}") },
+    )
     private var transport: WearEngineTransport? = null
     private var bridge: CompanionBridge? = null
 

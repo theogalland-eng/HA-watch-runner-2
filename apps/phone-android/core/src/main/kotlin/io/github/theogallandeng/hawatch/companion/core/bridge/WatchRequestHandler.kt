@@ -9,6 +9,7 @@ import io.github.theogallandeng.hawatch.companion.core.mapping.EntityCardMapper
 import io.github.theogallandeng.hawatch.companion.core.protocol.EntityCard
 import io.github.theogallandeng.hawatch.companion.core.protocol.ProtocolCodec
 import io.github.theogallandeng.hawatch.companion.core.protocol.WatchRequest
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -55,11 +56,19 @@ class WatchRequestHandler(
             return ProtocolCodec.encodeAck(request, ok = false, error = e.watchMessage)
         }
 
-        return when (request) {
-            is WatchRequest.Sync -> sync(request, settings, client)
-            is WatchRequest.SyncEntity -> guarded(request) { syncEntity(request, settings, client) }
-            is WatchRequest.CallService -> guarded(request) { callService(request, settings, client) }
-            is WatchRequest.Invalid -> error("handled above")
+        return try {
+            when (request) {
+                is WatchRequest.Sync -> sync(request, settings, client)
+                is WatchRequest.SyncEntity -> guarded(request) { syncEntity(request, settings, client) }
+                is WatchRequest.CallService -> guarded(request) { callService(request, settings, client) }
+                is WatchRequest.Invalid -> error("handled above")
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Never let an unexpected failure kill the companion process: the watch gets an answer.
+            logger.log("request ${request.id} failed: ${e.javaClass.simpleName}")
+            ProtocolCodec.encodeAck(request, ok = false, error = ERROR_INTERNAL)
         }
     }
 
@@ -75,8 +84,9 @@ class WatchRequestHandler(
 
     /**
      * Favorites only, in the user's order, one `GET /api/states/<id>` each (bounded parallelism).
-     * Prefers fast partial data: entities not fetched before the deadline are left out; missing
-     * entities (404) are skipped. Fails as a whole on auth errors, or when nothing could be fetched.
+     * Prefers fast partial data: an entity is left out when it no longer exists (404), was not
+     * fetched before the deadline, or failed on its own (network/HTTP error) while others succeeded.
+     * Fails as a whole (ACK) on auth errors, or when no card at all could be fetched.
      */
     private suspend fun sync(request: WatchRequest.Sync, settings: CompanionSettings, client: HaClient): String {
         val ids = settings.favorites.filter(mapper::isSupported)
@@ -163,5 +173,6 @@ class WatchRequestHandler(
         const val ERROR_NOT_CONFIGURED = "companion not configured"
         const val ERROR_NOT_ALLOWED = "not allowed"
         const val ERROR_TIMEOUT = "timeout"
+        const val ERROR_INTERNAL = "internal error"
     }
 }

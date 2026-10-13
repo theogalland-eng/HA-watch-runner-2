@@ -37,9 +37,13 @@ object HaInput {
         return UrlResult.Valid("https://$host$port$path")
     }
 
-    /** Trims and drops a pasted `Bearer ` prefix. Returns null if nothing usable remains. */
+    /**
+     * Trims and drops a pasted `Bearer ` prefix. Returns null if nothing usable remains or if the
+     * token contains anything but printable ASCII (HA tokens are JWTs; a pasted zero-width space or
+     * ellipsis would otherwise make every HTTP header invalid).
+     */
     fun normalizeToken(input: String): String? {
         val t = input.trim().removePrefix("Bearer ").removePrefix("bearer ").trim()
-        return t.takeIf { it.isNotEmpty() && it.none(Char::isWhitespace) }
+        return t.takeIf { it.isNotEmpty() && it.all { c -> c in '!'..'~' } }
     }
 }
