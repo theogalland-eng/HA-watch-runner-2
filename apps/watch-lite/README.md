@@ -64,6 +64,10 @@ npm run verify    # = lint + test + check
 npm run icons     # regenerate the 26 icons from the design paths (then: git diff shows nothing)
 ```
 
+Tested on Linux (Node 22) and also on Windows (Node 24). The tools work with native Windows paths:
+- modules loaded dynamically go through `pathToFileURL`;
+- everything else uses static imports or `node:path`.
+
 - **`npm run lint`**: ESLint with `eslint-plugin-es-x` `restrict-to-es5` on all the lite JS. It
   forbids every ES2015+ feature: `const`/`let`, arrows, classes, template literals, shorthands,
   spread, `?.`, `??`, `async`.
