@@ -10,3 +10,8 @@
 /.clang-tidy
 **/.test
 /.appanalyzer
+# Signing material (keystore, certificates, provisioning profiles): never commit.
+*.p12
+*.p7b
+*.cer
+*.csr
