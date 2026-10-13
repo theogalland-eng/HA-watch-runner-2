@@ -1,0 +1,21 @@
+#!/bin/sh
+# Refuses commits that would publish signing material. DevEco writes the signing config (keystore
+# path, encrypted passwords, .p7b/.cer paths) straight into build-profile.json5: it must stay local.
+# Enable once per clone:  git config core.hooksPath .githooks
+# (JSON5 keys may be quoted or not: both are caught.)
+fail=0
+
+git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)build-profile\.json5$' | while IFS= read -r f; do
+  if git show ":$f" | grep -Eq '"?(storeFile|storePassword|keyPassword|certpath|profile)"?[[:space:]]*:'; then
+    echo "pre-commit: $f contains signing material. Keep it local:" >&2
+    echo "  git restore --staged \"$f\" && git update-index --skip-worktree \"$f\"" >&2
+    exit 1
+  fi
+done || fail=1
+
+git diff --cached --name-only --diff-filter=ACM | grep -Ei '\.(p12|p7b|cer|csr|jks|keystore)$' | while IFS= read -r f; do
+  echo "pre-commit: refusing to commit signing file $f" >&2
+  exit 1
+done || fail=1
+
+exit $fail

@@ -1,8 +1,8 @@
 export default {
-    onCreate() {
+    onCreate: function () {
         console.info('Application onCreate');
     },
-    onDestroy() {
+    onDestroy: function () {
         console.info('Application onDestroy');
     }
 };

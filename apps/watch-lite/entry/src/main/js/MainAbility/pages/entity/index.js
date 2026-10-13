@@ -2,7 +2,7 @@ import router from '@system.router';
 import getStore from '../../common/store.js';
 
 function ensureStore() {
-    const st = getStore();
+    var st = getStore();
     if (!st.statesById) {
         st.statesById = {};
     }
@@ -10,15 +10,15 @@ function ensureStore() {
 }
 
 function safeNavEntity() {
-    const nav = getStore().navEntity;
+    var nav = getStore().navEntity;
     if (nav) return nav;
     return {};
 }
 
 function domainFromEntityId(entityId) {
     if (!entityId) return '';
-    const s = String(entityId);
-    const idx = s.indexOf('.');
+    var s = String(entityId);
+    var idx = s.indexOf('.');
     return idx > 0 ? s.slice(0, idx) : '';
 }
 
@@ -39,9 +39,9 @@ export default {
         busy: false
     },
 
-    onInit() {
+    onInit: function () {
         ensureStore();
-        const p = safeNavEntity();
+        var p = safeNavEntity();
 
         this.entityId = p.entityId ? String(p.entityId) : '';
         this.name = p.name ? String(p.name) : 'Entity';
@@ -49,14 +49,14 @@ export default {
         this.domain = domainFromEntityId(this.entityId);
 
         // Берём state из store, если есть
-        const store = ensureStore();
-        const saved = store.statesById[this.entityId];
+        var store = ensureStore();
+        var saved = store.statesById[this.entityId];
         this.state = saved !== undefined ? saved : (p.state ? String(p.state) : '—');
 
         this._rebuildActions();
     },
 
-    onSwipe(e) {
+    onSwipe: function (e) {
         if (!e || !e.direction) return;
 
         if (e.direction === 'right') {
@@ -70,15 +70,15 @@ export default {
         }
     },
 
-    refresh() {
+    refresh: function () {
         // TODO: P2P -> phone -> HA -> state
         console.log('refresh entity ' + this.entityId);
     },
 
-    _rebuildActions() {
-        const ICON_POWER = '/common/icons/power.png';
-        const ICON_LOCK = '/common/icons/lock.png';
-        const st = String(this.state || '');
+    _rebuildActions: function () {
+        var ICON_POWER = '/common/icons/power.png';
+        var ICON_LOCK = '/common/icons/lock.png';
+        var st = String(this.state || '');
 
         if (this.domain === 'light' || this.domain === 'switch') {
             if (st === 'on') {
@@ -125,15 +125,15 @@ export default {
         ];
     },
 
-    onAction(action) {
+    onAction: function (action) {
         if (this.busy) return;
         this.busy = true;
 
-        const id = action && action.id ? String(action.id) : '';
-        const self = this;
+        var id = action && action.id ? String(action.id) : '';
+        var self = this;
 
         // optimistic next state
-        let nextState = this.state;
+        var nextState = this.state;
 
         if (this.domain === 'light' || this.domain === 'switch') {
             if (id === 'turn_on') nextState = 'on';
@@ -149,7 +149,7 @@ export default {
         this.state = nextState;
 
         // 2) обновляем STORE (чтобы main экран тоже знал)
-        const store = ensureStore();
+        var store = ensureStore();
         store.statesById[this.entityId] = nextState;
 
         // 3) обновляем NAV cache

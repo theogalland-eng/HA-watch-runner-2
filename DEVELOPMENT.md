@@ -58,6 +58,12 @@ CI** — verification is currently manual via DevEco Studio:
 - **Relevant tests pass** (`entry/src/test` local unit; `entry/src/ohosTest` instrumented, under `apps/watch-arkts/`).
 - Sync/actions still work (or Mock still works).
 
+**Watch lite** (`apps/watch-lite/`), partly headless:
+- `cd apps/watch-lite/tools && npm ci && npm run verify` runs the ES5 lint, the unit tests of
+  `common/logic/`, and the page/icon/lite-CSS/signing checks.
+- The DevEco round previewer/simulator, compared with `docs/design/watch-lite/screens/`, stays
+  manual.
+
 **Phone companion** (`apps/phone-android/`): headless, with the committed Gradle wrapper — run
 `./gradlew test` (JVM unit tests, incl. the protocol handler against MockWebServer) and
 `./gradlew :app:assembleDebug :app:lintDebug` (no new lint errors). Real Wear Engine P2P can only be

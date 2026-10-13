@@ -3,7 +3,7 @@ import app from '@system.app';
 import getStore from '../../common/store.js';
 
 function ensureStore() {
-    const s = getStore();
+    var s = getStore();
     if (!s.statesById) {
         s.statesById = {};
     }
@@ -15,7 +15,7 @@ export default {
         items: []
     },
 
-    onInit() {
+    onInit: function () {
         ensureStore();
 
         // твои моки
@@ -30,17 +30,17 @@ export default {
     },
 
     // ВАЖНО: на Lite это срабатывает при возврате через replace/back
-    onShow() {
+    onShow: function () {
         this._applyStoreStates();
     },
 
-    _applyStoreStates() {
-        const store = ensureStore();
-        const map = store.statesById || {};
+    _applyStoreStates: function () {
+        var store = ensureStore();
+        var map = store.statesById || {};
 
         // Обновляем state у items из store (без изменения структуры)
-        for (let i = 0; i < this.items.length; i++) {
-            const id = this.items[i].id;
+        for (var i = 0; i < this.items.length; i++) {
+            var id = this.items[i].id;
             if (map[id] !== undefined) {
                 this.items[i].state = map[id];
             }
@@ -51,9 +51,9 @@ export default {
         this.items = this.items.slice(0);
     },
 
-    openEntity(item) {
-        const store = ensureStore();
-        const saved = store.statesById[item.id];
+    openEntity: function (item) {
+        var store = ensureStore();
+        var saved = store.statesById[item.id];
 
         // то, что entity экран читает
         store.navEntity = {
@@ -66,7 +66,7 @@ export default {
         router.replace({ uri: 'pages/entity/index' });
     },
 
-    onSwipe(event) {
+    onSwipe: function (event) {
         if (!event || !event.direction) return;
 
         // вправо — закрыть
@@ -82,7 +82,7 @@ export default {
         }
     },
 
-    openSettings() {
+    openSettings: function () {
         router.replace({ uri: 'pages/settings/index' });
     }
 };

@@ -39,15 +39,25 @@ The maintainer of this fork runs:
 
 | App | Package / bundle | Status |
 |-----|------------------|--------|
-| Watch (`apps/watch-lite/`) | `io.github.theogallandeng.hawatch` | **To do in phase 3:** `entry/src/main/config.json` still says `ru.gentslava.homeassistant` |
+| Watch (`apps/watch-lite/`) | `io.github.theogallandeng.hawatch` | Done: `config.json` bundle + `supportLists` (companion **debug** fingerprint) |
 | Companion (`apps/phone-android/`) | `io.github.theogallandeng.hawatch.companion` | Done |
 
-Phase 3 must update `apps/watch-lite/entry/src/main/config.json`:
-- set `bundleName` to `io.github.theogallandeng.hawatch`;
-- set `supportLists` to the companion package plus the SHA-256 of the phone signing key.
+Still to do:
+- **Release:** `supportLists` in `apps/watch-lite/entry/src/main/config.json` holds the companion's
+  *debug* SHA-256. Replace it with the release key's fingerprint
+  ([details](apps/watch-lite/README.md#identifiers)).
+- **Companion:** put the watch app's fingerprint in the companion's `watchPeerFingerprint`
+  ([details](apps/phone-android/README.md#identifiers)).
+- **Signing never goes in git.** DevEco writes keystore paths and passwords into
+  `build-profile.json5`. Enable the hook (`git config core.hooksPath .githooks`) and follow
+  [apps/watch-lite/README.md § Signature](apps/watch-lite/README.md#signature-local-only-never-committed).
 
-Then put the watch app's fingerprint in the companion's `watchPeerFingerprint`
-([details](apps/phone-android/README.md#identifiers)).
+**Watch lite checks without DevEco** (Node ≥ 22.12), from `apps/watch-lite/tools/`:
+`npm ci && npm run verify`.
+- **Lint:** ES5 lint (no ES2015+, no `Promise`/`globalThis`/`setInterval`).
+- **Tests:** unit tests of `common/logic/`.
+- **Check:** page ≤ 48 KB, the 26 icons < 1 KB, lite-only CSS/HML, no signing material.
+- **Icons:** `npm run icons` regenerates the 26 icons from the design paths.
 
 ## Repository layout (monorepo)
 

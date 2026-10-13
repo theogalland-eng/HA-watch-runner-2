@@ -172,8 +172,11 @@ Trait seul, formes simples, une couleur. Pas de teinte à l'exécution : **une P
 - **24 × 24** : indicateurs (trait 2 px ; 2,4 px pour la coche).
 - 17 fichiers en 48 px + 9 en 24 px = **26 PNG**, moins de 1 Ko chacune.
 
-L'export ne contient pas de fichiers d'icônes : elles y sont dessinées en SVG. Les PNG restent à
-produire à partir des tracés ci-dessous.
+L'export ne contient pas de fichiers d'icônes : elles y sont dessinées en SVG. Les 26 PNG sont
+générées à partir des tracés ci-dessous par
+[`apps/watch-lite/tools/icons/generate-icons.mjs`](../../../apps/watch-lite/tools/icons/generate-icons.mjs)
+(`npm run icons`, sans dépendance, reproductible et vérifié par les tests), dans
+`apps/watch-lite/entry/src/main/js/MainAbility/common/icons/`.
 
 | Fichier | Taille | Usage | Couleurs (= nombre de PNG) |
 |---------|--------|-------|-----------------------------|
@@ -198,6 +201,22 @@ produire à partir des tracés ci-dessous.
 
 La maquette ne fixe pas le nom des variantes de couleur. Elle dit seulement « 48 et 24 » pour
 `ic_phone_off` et `ic_ha_off` : les noms `_24` ci-dessus reprennent la convention de `ic_sync_24`.
+
+**Nom des fichiers : `<icône>_<rôle>.png`.** Le rôle est celui de la palette :
+
+| Rôle | Couleur |
+|------|---------|
+| `on` | ambre `#FFC247` |
+| `off` | gris `#6B6B6B` |
+| `sub` | gris `#8C8C8C` |
+| `lock` | vert `#3DD68C` |
+| `unlock` | orange `#FF8A3D` |
+| `act` | bleu `#41BDF5` |
+| `err` | rouge `#FF5A52` |
+
+Par exemple `ic_light_on.png`, `ic_light_off.png`, `ic_sync_24_act.png` ou `ic_check_24_lock.png`.
+Les fichiers générés pèsent entre 165 et 419 octets. Ce sont des PNG indexées : une seule couleur, et
+l'anticrénelage passe par la transparence.
 
 <details>
 <summary>Tracés SVG (viewBox 0 0 24 24, <code>fill: none</code>, extrémités et jonctions rondes)</summary>
@@ -292,38 +311,66 @@ avant de s'appuyer dessus.
 
 | Dans la maquette | Problème en lite | Alternative |
 |------------------|------------------|-------------|
-| Icônes SVG teintées par `stroke` | Le composant `image` lite ne teint pas les images ; pas de SVG ⚠. | Les 26 PNG prévues, une par couleur, fond transparent, générées à partir des tracés ci-dessus. |
+| Icônes SVG teintées par `stroke` | Le composant `image` lite n'accepte que PNG et JPG et ne teint pas les images ✓. | Les 26 PNG, une par couleur, fond transparent, générées à partir des tracés ci-dessus. |
 | Icônes PNG 48 px (128 px dans l'app actuelle) | Une PNG coûte largeur × hauteur × 4 octets une fois décodée : 9 216 o en 48 px, 2 304 o en 24 px, 65 536 o pour les 128 px de `common/icons/`. | 48 px maximum, 24 px pour les indicateurs, jamais d'agrandissement par CSS. Les 26 PNG pèsent ≈ 173 Kio décodées. |
 | Écran « off » : lanceur rond de 112 px avec `ic_home` | Simulation du lanceur système, pas un écran de l'app. | Ne pas l'implémenter. L'icône de l'app reste `resources/base/media/icon.png`, affichée par le système. |
-| Police HarmonyOS Sans, graisse Medium en 40 px | Une seule police système ; pas de `font-weight` sur `text` ⚠. | 40 px Regular : la hiérarchie tient par la taille et la couleur. |
-| Interlignes 48 / 36 / 30 | `line-height` non garanti sur `text` ⚠. | Hauteur fixe sur chaque `text` (48, 36 ou 30 px) pour garder le rythme vertical. |
-| Une ligne avec ellipse (`nowrap`, `text-overflow: ellipsis`) | Ellipse lite à confirmer ⚠ ; elle exige de toute façon une largeur fixe. | `width` fixe (276 px pour un nom de ligne = 340 − 48 − 16) + `text-overflow: ellipsis` ; en repli, coupe en JS à ~17 caractères + « … ». |
+| Police HarmonyOS Sans, graisse Medium en 40 px | Une seule police : `SourceHanSansSC-Regular` ; pas de `font-weight` sur `text` ✓. | 40 px Regular : la hiérarchie tient par la taille et la couleur. |
+| Interlignes 48 / 36 / 30 | `line-height` existe sur `text` depuis l'API 10 ✓ (projet en API 18). | `line-height` + hauteur fixe sur chaque `text` (48, 36 ou 30 px) pour garder le rythme vertical ; rendu à comparer dans DevEco ⚠. |
+| Espacement des lettres | `letter-spacing` vaut **2 px par défaut** sur `text` ✓. | `letter-spacing: 0px` partout, sinon les noms débordent. |
+| Une ligne avec ellipse (`nowrap`, `text-overflow: ellipsis`) | Supportée par `text`, à condition d'avoir une largeur fixe ✓. | `width` fixe (276 px pour un nom de ligne = 340 − 48 − 16) + `text-overflow: ellipsis` ; en repli, coupe en JS (`ellipsize`) à ~17 caractères + « … ». |
 | Titres et aides sur deux lignes (5b, 5c, 5d) | Retour à la ligne automatique peu fiable ⚠. | Deux `text` d'une ligne chacun (deux chaînes i18n), ou des textes raccourcis à une ligne. |
-| `gap`, `min-width`, `max-width`, `inset`, `box-sizing` | Hors du sous-ensemble CSS lite ⚠. | Marges explicites (`margin-left: 16px`…), largeurs fixes (240, 320, 340), superposition par `stack`. |
-| Bouton grisé par `opacity: 0.4` pendant l'action | Opacité à confirmer ⚠. | Contour et texte en `#6B6B6B` pendant l'action, tap ignoré. Plus simple et sans transparence. |
-| Fond d'appui `#1A1A1A` (`:active`) | Pseudo-classes limitées ⚠. | Classe basculée dans `touchstart` / `touchend` ; à défaut, s'en passer : l'état « en cours » suffit comme retour. |
-| Liste droite avec marges 48 en haut et 150 en bas | Pas d'`ArcList` ; le padding d'une `list` n'est pas forcément compté dans la zone de défilement. | `list` + `list-item` : un `list-item` vide de 48 px, l'indicateur (44 px), les favoris, Réglages, puis un `list-item` vide de 150 px (comme `bottomSpace` dans `pages/index`). |
+| `gap`, `min-width`, `max-width`, `inset`, `box-sizing`, `flex: 1` | Hors du sous-ensemble CSS lite ✓ (`npm run check` les refuse). | Marges explicites (`margin-left: 16px`…), largeurs fixes (240, 276, 320, 340), superposition par `stack` + `left`/`top`. |
+| Bouton grisé par `opacity: 0.4` pendant l'action | `opacity` est supportée (API 5+) ✓. | Gardé tel quel : `opacity: 0.4` et tap ignoré pendant l'action ; rendu à vérifier ⚠. |
+| Fond d'appui `#1A1A1A` (`:active`) | Événements lite : `click`, `longpress`, `swipe` seulement (pas de `touchstart`) ; `:active` n'existe que sur `input[type=button]`, pour `background-color` ✓. | **Pas de surbrillance d'appui** : la ligne passe tout de suite « en cours » (bleu), c'est le retour visuel. |
+| Liste droite avec marges 48 en haut et 150 en bas | Pas d'`ArcList` ; le padding d'une `list` n'est pas forcément compté dans la zone de défilement. | `list` + `list-item` : un `list-item` vide de 48 px, l'indicateur (44 px), les favoris, Réglages, puis un `list-item` vide de 150 px. |
 | Masque rond (`border-radius: 50%` + `overflow: hidden`) | Inutile : l'écran est physiquement rond. | Rien à faire ; respecter le cercle sûr. |
 | Ombres des planches, repères roses, décalage `translateY` | Outils de présentation du prototype. | Ne pas les reproduire. Aucun flou, ombre ni dégradé sur la montre. |
 | Appui long à 550 ms, clic droit | Seuil fixé par le système, pas de clic droit. | Événement `longpress` (seuil système). |
-| Glisser vers la droite = retour | Routeur sans pile de retour. | `on:swipe` direction `right` → `router.replace` vers la page parente explicite (déjà fait dans `pages/entity`) ; depuis la liste, `app.terminate()`. |
+| Glisser vers la droite = retour | Routeur sans pile de retour. | `on:swipe` direction `right` → `router.replace` vers la page parente explicite ; depuis la liste, `app.terminate()`. |
 | Confirmation et erreurs en écrans séparés | Chaque page est rechargée à la navigation et pèse au plus 48 Ko. | Blocs `if` / `show` dans la page courante (confirmation dans la liste ou le détail, erreurs dans la liste) : ni page, ni pile en plus. |
 | Couronne = défilement et retour | Rotation de la couronne transmise à la `list` ⚠ ; l'appui sur la couronne appartient au système. | Défilement tactile en repli ; retour par glissement uniquement. |
 | Bouton bas = ouvre l'app | Réglage système de l'utilisateur, hors de portée de l'app ⚠. | Le documenter pour l'utilisateur ; rien à coder. |
-| Minuteries 1,5 s, 3 s, 8 s, 10 s | `setTimeout` fonctionne, mais tout s'arrête quand l'app quitte (pas d'arrière-plan). | Annuler les minuteries dans `onDestroy` ; à la reprise, repartir du cache. Une action interrompue n'est pas rejouée automatiquement. |
-| Cache affiché dès le lancement | L'état n'est pas restauré après redémarrage. | Persister la dernière liste de cartes (10 au plus) avec `@system.storage` ⚠. |
+| Minuteries 1,5 s, 3 s, 8 s, 10 s | `setTimeout` fonctionne, mais tout s'arrête quand l'app quitte (pas d'arrière-plan). | Annuler les minuteries dans `onDestroy` ; à la reprise, repartir du cache. Une action interrompue n'est pas rejouée automatiquement. **Jamais de `setInterval`** (le lint le refuse). |
+| « il y a 3 min » qui se met à jour | Il faudrait une minuterie périodique (batterie). | Recalculé à chaque rendu (ouverture, synchro, action, retour) ; pas de minuterie. |
+| Cache affiché dès le lancement | L'état n'est pas restauré après redémarrage ; `@system.storage` limite chaque valeur à **moins de 128 octets** ✓. | JSON compact (`common/logic/cache.js`, ≤ 4 Ko) écrit avec `@system.file` dans `internal://app/ha_cache.json`. |
 | 10 favoris, 26 icônes | ~1 Mo de RAM. | 10 favoris maximum (comme le compagnon) ; une seule PNG par icône et par couleur, référencée par chemin. |
 
-### Autres écarts (contrat P2P v1, contenu)
+✓ = vérifié dans la référence OpenHarmony `arkui-js-lite` (OpenHarmony-4.0-Release : styles communs,
+`text`, `list`, `image`, événements, `@system.storage`, `@system.file`).
 
-- **« Mis à jour il y a … »** dans le détail : `EntityCard` ne porte pas d'horodatage Home
-  Assistant ([p2p-protocol.md](../../p2p-protocol.md)). Sans changer le protocole, afficher l'âge de
-  la dernière réception par la montre. Ajouter un champ serait un changement de contrat (`v`).
-- **Volets, scènes, capteurs** : hors du MVP (`light`, `switch`, `lock`) et refusés par la garde
-  `CALL_SERVICE` du compagnon. Les icônes sont prêtes ; ces lignes attendent un nouveau domaine
-  côté compagnon.
-- **Causes d'échec** : distinguables sans changer le protocole. Pas de pair ou envoi P2P refusé →
-  « tél. déconnecté » ; `ACK.error` `HA unreachable` → « HA injoignable » ; pas de réponse en 8 s
-  ou `HA timeout` → « délai dépassé ».
-- **Langue** : la maquette est en français ; l'app lite n'a que `en-US` et `ru-RU`. Un `fr-FR.json`
-  sera à ajouter lors de l'intégration.
+### États hors maquette
+
+La maquette ne dessine que les états nominaux. Pour les autres états que Home Assistant peut
+renvoyer (`common/logic/look.js`) :
+
+| État | Rendu |
+|------|-------|
+| `unavailable`, `unknown` | Texte « Indisponible » en gris `#6B6B6B`. L'icône est la variante grise (`_off`), ou `ic_fail_err` pour une serrure, faute de serrure grise. Le tap est ignoré. |
+| `jammed` (serrure) | `ic_fail_err` et « Bloquée » en rouge. Le tap verrouille. |
+| `locking`, `unlocking`, `opening` (serrure) ; `opening`, `closing` (volet) | L'appareil est en mouvement : HA renvoie souvent `locking` juste après l'appel. La ligne s'affiche comme « en cours » (`ic_pending_act`, « Verrouillage… », « Déverrouillage… », « Ouverture… », « Fermeture… », en bleu), jamais comme l'état final. Pas de coche, tap ignoré, pas de bouton dans le détail ; la ligne retrouve son aspect normal au prochain rafraîchissement. |
+| `open` (serrure) | Comme `unlocked` : « Déverrouillée ». |
+
+Une entité indisponible ou en mouvement n'a pas de bouton d'action dans le détail.
+
+### Autres écarts (contrat P2P, contenu)
+
+- **1 Ko maximum par message P2P, dans les deux sens.** C'est documenté par Huawei pour Wear Engine.
+  Une `SYNC_RESPONSE` v1 dépasse cette taille au-delà d'environ 4 favoris. Elle est remplacée par un
+  **protocole v2 compact**, défini dans la PR 2b (compagnon + ADR + `p2p-protocol.md`) avant le
+  branchement de la montre (PR 3c) :
+  - carte `{ k, d, n, s }` : emplacement 0–9, domaine, nom de 20 caractères au plus, état ;
+  - action `CALL_SERVICE { k, act? }`, avec `act: "confirm"` pour déverrouiller ;
+  - révision des favoris `fr` ; une action avec une `fr` périmée reçoit `ACK { ok: false, code: "stale" }`,
+    et la montre resynchronise ;
+  - chaque message fait **900 octets au plus**, vérifié par un test côté compagnon.
+- **« Mis à jour il y a … »** dans le détail : la carte ne porte pas d'horodatage Home Assistant.
+  On affiche l'âge de la dernière réception par la montre.
+- **Volets, scènes, capteurs** : hors du MVP du compagnon (`light`, `switch`, `lock`). La montre sait
+  déjà les dessiner (icônes et règles dans `look.js`) ; le mode démo (Mock) les montre pour
+  reproduire la variante 10 favoris.
+- **Causes d'échec** : pas de pair ou envoi P2P refusé → « tél. déconnecté » ; HA en erreur côté
+  compagnon → « HA injoignable » ; pas de réponse en 8 s → « délai dépassé ».
+- **Langues** : `fr-FR` (libellés exacts de la maquette), plus `en-US` et `ru-RU`.
+- **Mode démo (Mock)** : **uniquement quand Wear Engine est indisponible**, c'est-à-dire dans
+  l'aperçu ou le simulateur DevEco, ou si le SDK n'est pas installé. Sur la vraie montre, un
+  téléphone absent donne le cache et l'indicateur rouge, ou l'écran 5b s'il n'y a pas de cache.

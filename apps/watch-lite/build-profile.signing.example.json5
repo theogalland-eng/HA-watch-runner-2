@@ -1,0 +1,31 @@
+// TEMPLATE ONLY: never commit real values. Signing is configured locally (see README § Signature):
+// DevEco "File > Project Structure > Signing Configs" writes this block into build-profile.json5,
+// then protect that file with:  git update-index --skip-worktree apps/watch-lite/build-profile.json5
+// The committed build-profile.json5 keeps "signingConfigs": [] (checked by tools/check.mjs and the
+// .githooks/pre-commit hook).
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "storeFile": "C:/path/to/your-keystore.p12",
+          "storePassword": "<written by DevEco, encrypted>",
+          "keyAlias": "<your key alias>",
+          "keyPassword": "<written by DevEco, encrypted>",
+          "signAlg": "SHA256withECDSA",
+          "profile": "C:/path/to/your-debug-profile.p7b",
+          "certpath": "C:/path/to/your-debug-certificate.cer"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default"
+        // …rest of the product as in build-profile.json5
+      }
+    ]
+  }
+}

@@ -2,7 +2,7 @@ import router from '@system.router';
 import getStore from '../../common/store.js';
 
 function ensureStore() {
-    const st = getStore();
+    var st = getStore();
     if (!st.settings) {
         st.settings = {};
     }
@@ -15,8 +15,8 @@ export default {
         logoSrc: '/common/icons/logo_mono.png'
     },
 
-    onInit() {
-        const store = ensureStore();
+    onInit: function () {
+        var store = ensureStore();
 
         // optional: allow settings to override
         if (store.settings && store.settings.versionName) {
@@ -24,7 +24,7 @@ export default {
         }
     },
 
-    onSwipe(e) {
+    onSwipe: function (e) {
         if (!e || !e.direction) return;
 
         // back to settings

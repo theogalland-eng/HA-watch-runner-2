@@ -1,7 +1,7 @@
 {
   "app": {
-    "bundleName": "ru.gentslava.homeassistant",
-    "vendor": "gentslava",
+    "bundleName": "io.github.theogallandeng.hawatch",
+    "vendor": "theogallandeng",
     "version": {
       "code": 1000000,
       "name": "1.0.0"
@@ -12,6 +12,15 @@
     "deviceType": [
       "liteWearable"
     ],
+    "metaData": {
+      "customizeData": [
+        {
+          "name": "supportLists",
+          "value": "io.github.theogallandeng.hawatch.companion:0086FAF43D2D8B06E39F93614DE0868BCD61628720394C11FDCE4DC506D29667",
+          "extra": ""
+        }
+      ]
+    },
     "distro": {
       "deliveryWithInstall": true,
       "moduleName": "entry",

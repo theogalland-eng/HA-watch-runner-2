@@ -88,6 +88,14 @@ If a lite-JS client is built for GT, these constraints apply:
 - Images are decoded to raw RGBA → keep icons tiny (a few PNGs, no large graphics).
 - ES5.1 only — share state via a `getApp().data` / singleton module, **not** `globalThis`.
 - No watch-side internet → all network goes through the phone companion over Wear Engine P2P.
+- Text: a single font (SourceHanSansSC-Regular, no weights), and `letter-spacing` defaults to
+  **2 px**, so set it to 0 explicitly.
+- Events: only `click`, `longpress`, `swipe`; no touch events. `:active` only on
+  `input[type=button]`, and only for the background.
+- `@system.storage` values must be **< 128 bytes**, so a data cache goes through `@system.file`
+  (`internal://app/`).
+- Wear Engine P2P: **1 KB per message**, in both directions (Huawei docs). Hence the compact
+  protocol v2.
 - No direct `hdc` (GT has no "HDC debugging"/"Debug via Wi-Fi"). Install + logs via the phone app
   **HUAWEI DevEco Assistant** (`查看日志` / View Logs).
 
