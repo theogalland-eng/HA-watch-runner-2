@@ -20,13 +20,14 @@ The watch has **no direct network access to Home Assistant**. It talks to an And
 ```
 ┌──────────────────────────┐   Wear Engine P2P    ┌────────────────────┐   HA REST    ┌────────────────┐
 │  Watch app (this repo)   │  (UTF-8 JSON msgs)   │  Android companion │  (HTTP/JSON) │ Home Assistant │
-│  HarmonyOS / ArkTS       │ <══════════════════> │  (separate repo)   │ <══════════> │   instance     │
+│  HarmonyOS / ArkTS       │ <══════════════════> │ apps/phone-android │ <══════════> │   instance     │
 └──────────────────────────┘                      └────────────────────┘              └────────────────┘
 ```
 
-The companion app lives in a **separate repository** and is not written yet. The P2P
-message protocol is therefore a forward-looking **contract** that both sides must honor —
-treat [p2p-protocol.md](p2p-protocol.md) as the source of truth when building either side.
+The companion app lives in [`apps/phone-android/`](../apps/phone-android/) (Kotlin; see
+[ADR-0007](adr/0007-android-companion-on-demand.md)). The P2P message protocol is the
+**contract** that all sides honor — treat [p2p-protocol.md](p2p-protocol.md) as the source of truth
+when changing either side.
 
 ## Layers (Clean Architecture)
 

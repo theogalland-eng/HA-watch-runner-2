@@ -15,10 +15,38 @@ as lite wearable and physically rejects this ArkTS HAP (see
 [docs/platform-constraints.md](docs/platform-constraints.md)). The watch has no direct network path to
 Home Assistant: it talks to
 an Android **companion app** over **Wear Engine P2P**, and the companion holds the HA REST
-connection. The companion lives in a **separate repository and is not written yet** — the wire
-contract in [docs/p2p-protocol.md](docs/p2p-protocol.md) is what both sides build against.
+connection. The companion lives in [`apps/phone-android/`](apps/phone-android/) — the wire
+contract in [docs/p2p-protocol.md](docs/p2p-protocol.md) is what all sides build against.
 
 Maturity: clean MVP. Three entity domains (`light`, `switch`, `lock`), EN + RU localization.
+
+## This fork: target hardware & identifiers
+
+The maintainer of this fork runs:
+
+- **Watch:** Huawei **Watch GT Runner 2**. It is a *lite wearable*, so its app is
+  **`apps/watch-lite/`**. `apps/watch-arkts/` cannot run on it.
+- **Phone:** Xiaomi **Redmi Note 13 Pro+** on **HyperOS**, with Huawei Health. Its app is
+  **`apps/phone-android/`**.
+- **Priority: battery, on both devices.**
+  - No periodic polling and no WebSocket.
+  - The watch syncs on open, then refreshes one entity after an action, keeps a cache of the last
+    state, shows a short favorites list on a black background.
+  - The phone calls HA REST only when the watch asks ([ADR-0007](docs/adr/0007-android-companion-on-demand.md)).
+- **The HA token never appears** in code, tests, logs or commits. The user types it in the
+  companion, which stores it encrypted with the Android Keystore.
+
+| App | Package / bundle | Status |
+|-----|------------------|--------|
+| Watch (`apps/watch-lite/`) | `io.github.theogallandeng.hawatch` | **To do in phase 3:** `entry/src/main/config.json` still says `ru.gentslava.homeassistant` |
+| Companion (`apps/phone-android/`) | `io.github.theogallandeng.hawatch.companion` | Done |
+
+Phase 3 must update `apps/watch-lite/entry/src/main/config.json`:
+- set `bundleName` to `io.github.theogallandeng.hawatch`;
+- set `supportLists` to the companion package plus the SHA-256 of the phone signing key.
+
+Then put the watch app's fingerprint in the companion's `watchPeerFingerprint`
+([details](apps/phone-android/README.md#identifiers)).
 
 ## Repository layout (monorepo)
 
@@ -26,10 +54,11 @@ This repo hosts **multiple apps** that drive the same Home Assistant over one sh
 
 - `apps/watch-arkts/` — **this** ArkTS app (full wearable: Watch 4/5/Ultimate). **Default subject of this file.**
 - `apps/watch-lite/` — lite-wearable **JS** app for Watch GT (FA model, ES5.1, HML/CSS/JS, JerryScript). Mirror architecture, *different runtime* — see [docs/platform-constraints.md](docs/platform-constraints.md).
-- `apps/phone-android/` — Android companion (Kotlin), **not written yet**.
+- `apps/phone-android/` — Android companion (Kotlin + Compose, Gradle). See [its section](#phone-companion-appsphone-android) below.
 - root: shared AI + knowledge layer (`AGENTS.md`, `CLAUDE.md`, `DEVELOPMENT.md`, `docs/`, `.claude/`).
 
-Unless stated otherwise, everything below describes **`apps/watch-arkts/`**. The lite app shares only
+Unless stated otherwise, everything below describes **`apps/watch-arkts/`** (the companion has its
+own section at the end). The lite app shares only
 **design** (the [P2P contract](docs/p2p-protocol.md), domain model, architecture) — never code, since
 ArkTS and lite-JS are different languages/compilers/runtimes ([why](docs/platform-constraints.md)).
 Each app is opened as its own project root in its IDE (`apps/watch-arkts/` and `apps/watch-lite/` in
@@ -45,10 +74,10 @@ DevEco Studio; `apps/phone-android/` in Android Studio) — the git root is the 
 | Bundle | `ru.gentslava.homeassistant`, version `1.0.0` |
 | State mgmt | ArkUI **V2 only** (`@ComponentV2`/`@ObservedV2`/`@Trace`/`AppStorageV2`) |
 | Transport | Wear Engine P2P (`@kit.WearEngine`), UTF-8 JSON, `v:1` protocol |
-| Production deps | **none** (pure ArkTS) — keep it that way unless discussed |
+| Production deps | **none** (pure ArkTS) — keep it that way unless discussed (watch apps; the companion has its own deps) |
 | Test/mock libs | `@ohos/hypium`, `@ohos/hamock` (devDependencies) |
 | Module | single `entry` module, source under `apps/watch-arkts/entry/src/main/ets/` |
-| Repo | **monorepo** — `apps/watch-arkts` (this), `apps/watch-lite` (GT/lite-JS), `apps/phone-android` (companion, TBD) |
+| Repo | **monorepo** — `apps/watch-arkts` (this), `apps/watch-lite` (GT/lite-JS), `apps/phone-android` (companion, Kotlin) |
 
 ## Build / run / test / lint
 
@@ -85,7 +114,9 @@ apps/
     entry/src/{test,ohosTest}/  local unit + instrumented tests
   watch-lite/     lite-JS — Watch GT (mirror architecture, different runtime)
     entry/src/main/js/MainAbility/   pages/ + common/ (store, repo, services, utils) + i18n
-  phone-android/  Android companion (Kotlin) — placeholder, not written yet
+  phone-android/  Android companion (Kotlin + Compose, Gradle wrapper committed)
+    core/           pure JVM: protocol/, ha/ (REST client), mapping/ (domains), bridge/ (handler, WatchTransport)
+    app/            Android: ui/ (Compose), data/ (Keystore token, settings), wear/ (Wear Engine), service/
 docs/             architecture.md, p2p-protocol.md, platform-constraints.md, adr/
 AGENTS.md  CLAUDE.md  DEVELOPMENT.md   shared AI layer (root)
 ```
@@ -129,13 +160,57 @@ shaped this way: [ADR-0001](docs/adr/0001-clean-architecture-layering.md)..[0004
   so UI never blocks on P2P/network. Don't "fix" it by awaiting.
 - **P2P requests correlate by `id` with an 8s timeout**; replies may arrive out of order. Changing
   message shapes is a breaking change — bump `v` and update [docs/p2p-protocol.md](docs/p2p-protocol.md).
-- **The companion repo doesn't exist yet.** When work implies phone-side behavior, update the
-  protocol contract rather than assuming an implementation.
+- **Phone-side behavior lives in `apps/phone-android/`.** Any change to the watch↔phone exchange
+  updates [docs/p2p-protocol.md](docs/p2p-protocol.md) **and** the companion's `core/` (plus its tests)
+  in the same PR.
+
+## Phone companion (`apps/phone-android/`)
+
+Kotlin + Jetpack Compose, minSdk 26 / targetSdk 35. Package `io.github.theogallandeng.hawatch.companion`.
+Open `apps/phone-android/` in Android Studio. Full guide: [its README](apps/phone-android/README.md).
+Decision record: [ADR-0007](docs/adr/0007-android-companion-on-demand.md).
+
+| Task | Command (from `apps/phone-android/`) |
+|------|--------------------------------------|
+| Unit tests (JVM, incl. MockWebServer) | `./gradlew test` |
+| Debug APK | `./gradlew :app:assembleDebug` |
+| Lint | `./gradlew :app:lintDebug` |
+
+Rules:
+- **Protocol logic goes in `core/`** (pure JVM, no Android imports) and must be unit-tested there.
+  `app/` only holds the Android adapters (UI, Keystore, foreground service, Wear Engine).
+- **Wear Engine SDK** (`com.huawei.hms:wearengine`, Huawei Maven repo) is only touched in `app/…/wear/`,
+  behind `WatchTransport`. Tests use a fake.
+- **Battery contract.**
+  - HA REST runs only in response to a watch request, or to a user action on the phone.
+  - No polling, timers, WebSocket or wakelocks. The foreground service only keeps the receiver registered.
+  - Reply within the 6.5 s deadline (the watch times out at 8 s).
+- **Secrets.**
+  - The token is encrypted with the Keystore (`SecureTokenStore`), sent only over HTTPS, and never
+    logged or written into an `ACK.error`.
+  - Logs carry only types, ids, sizes and error codes.
+  - Never commit `local.properties` / `keystore.properties` / `*.jks`.
+- **i18n.** Every string lives in `values/` (EN), `values-fr/` and `values-ru/`. A unit test enforces
+  the same keys and placeholders. Action labels are sent to the watch, so keep them short.
+- **New HA domain.** Add a `DomainMapper` in `core/mapping/` with its `allowedServices` and labels,
+  plus tests.
+
+Gotchas:
+- **`watchPeerFingerprint` is a placeholder** (`gradle.properties`; override in `local.properties`).
+  Real P2P will not connect until it holds the watch app's fingerprint. Do not invent one.
+- **Huawei-side registration is manual.** It means the Wear Engine service on HUAWEI Developers,
+  registered with the companion package plus the SHA-256 of a *stable* signing key. It cannot be
+  verified from CI.
+- **HyperOS.** The user must allow autostart and "No restrictions" for battery, for the companion
+  **and** for Huawei Health (Wear Engine error 15 = Health not allowed to autostart).
+- **Maven Central rate limits (HTTP 429)** can hit sandboxed/CI environments; retry, or use a mirror
+  through a *local* Gradle init script. Do not commit mirrors.
 
 ## Working in this repo
 
 - **Verify before claiming done:** the emulator (Mock mode) must still run, and the linter must
   report no new ArkTS errors/warnings. See the PR checklist in [CONTRIBUTING.md](CONTRIBUTING.md).
+  For the companion: `./gradlew test` and `./gradlew :app:assembleDebug :app:lintDebug` pass.
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`), one focused change per PR.
 - **Process & agent roles** (Explore → Plan → Code → Commit, review/test agents): [DEVELOPMENT.md](DEVELOPMENT.md).
 - **Scope discipline:** touch only what the task needs; don't refactor adjacent code or remove

@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2025-01-01
+- **Revised:** 2026-10-13 — the companion now exists in this monorepo (`apps/phone-android/`, see [ADR-0007](0007-android-companion-on-demand.md))
 
 ## Context
 
@@ -18,15 +19,16 @@ versioned request/reply protocol (`v: 1`), correlated by `id`, with an 8s per-re
 The companion is the source of truth for HA semantics; the watch is presentation-only.
 
 The wire contract is specified in [../p2p-protocol.md](../p2p-protocol.md). The companion lives in
-a **separate repository and is not written yet** — the protocol doc is the shared contract for both
-sides.
+[`apps/phone-android/`](../../apps/phone-android/) ([ADR-0006](0006-monorepo-structure.md),
+[ADR-0007](0007-android-companion-on-demand.md)); the protocol doc remains the shared contract for
+all sides.
 
 ## Consequences
 
 - Secrets (HA URL/token) live on the phone, not the watch.
 - The watch stays thin: it renders `EntityCard`s and echoes `EntityAction`s; adding an HA domain is
   mostly a companion + UI-mapping change.
-- Two repos must evolve in lockstep on protocol changes — bump `v` and update both sides together.
+- Watch and phone apps must evolve in lockstep on protocol changes — bump `v` and update all sides together.
 - Real-device P2P requires the companion's `bundleName` + signing `fingerprint` via
   `WearEngineP2pClient.setRemoteApp(...)`; these are **currently commented out** in `Services.ets`.
 - Hard dependency on Huawei Wear Engine + a paired Huawei phone; no standalone watch operation.

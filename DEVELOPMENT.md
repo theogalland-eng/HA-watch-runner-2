@@ -14,7 +14,7 @@ domain"). Operational facts live in [AGENTS.md](AGENTS.md); read that first.
 | [AGENTS.md](AGENTS.md) | Single source of truth: commands, layout, strict-ArkTS rules, gotchas | Every session; update when a fact changes |
 | [CLAUDE.md](CLAUDE.md) | Thin Claude Code layer; imports `AGENTS.md` | Claude-specific guidance only |
 | [docs/architecture.md](docs/architecture.md) | System map, layers, startup & data flow | Before cross-layer work |
-| [docs/p2p-protocol.md](docs/p2p-protocol.md) | Watch↔phone wire contract (companion = separate, unwritten repo) | Before touching messaging; update on any change |
+| [docs/p2p-protocol.md](docs/p2p-protocol.md) | Watch↔phone wire contract (companion = `apps/phone-android/`) | Before touching messaging; update on any change |
 | [docs/adr/](docs/adr/) | Why decisions were made | Before structural changes; supersede, don't contradict |
 | [.claude/agents/](.claude/agents/) | Role subagents (architect, reviewer, test-writer) | Delegate the matching phase |
 
@@ -40,7 +40,7 @@ change they describe. Stale instructions are worse than none — they actively m
 The human owns decisions; agents own execution. Stop and get a human decision before:
 
 - Reversing or adding an **ADR** (architecture, transport, protocol).
-- A **breaking P2P protocol change** (`v` bump) — it commits the future companion repo to a contract.
+- A **breaking P2P protocol change** (`v` bump) — it commits every app (watch + companion) to a new contract.
 - Filling in real secrets/identity: the `setRemoteApp(...)` bundleName/fingerprint, `client_id`,
   `wearEngineRemoteAppNameList` (today they are intentional placeholders).
 - Adding a **production dependency** (the app is intentionally pure ArkTS).
@@ -50,12 +50,18 @@ The human owns decisions; agents own execution. Stop and get a human decision be
 
 A task is **not done** until it is verified. State the evidence; never claim success without it.
 
-There is **no committed `hvigorw` and no CI** — verification is currently manual via DevEco Studio:
+**Watch apps** (`apps/watch-arkts/`, `apps/watch-lite/`): there is **no committed `hvigorw` and no
+CI** — verification is currently manual via DevEco Studio:
 
 - **Runs on the emulator in Mock mode** (no clipped UI on the round screen).
 - **Code Linter reports no new ArkTS errors/warnings** (`code-linter.json5`).
 - **Relevant tests pass** (`entry/src/test` local unit; `entry/src/ohosTest` instrumented, under `apps/watch-arkts/`).
 - Sync/actions still work (or Mock still works).
+
+**Phone companion** (`apps/phone-android/`): headless, with the committed Gradle wrapper — run
+`./gradlew test` (JVM unit tests, incl. the protocol handler against MockWebServer) and
+`./gradlew :app:assembleDebug :app:lintDebug` (no new lint errors). Real Wear Engine P2P can only be
+checked on a phone paired with the watch.
 
 If you cannot run a check in your environment, say so explicitly and hand the exact steps to the
 human — do not assert a check passed when you didn't run it.

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HA Watch Companion</string>
+
+    <string name="action_turn_on">Включить</string>
+    <string name="action_turn_off">Выключить</string>
+    <string name="action_toggle">Переключить</string>
+    <string name="action_lock">Запереть</string>
+    <string name="action_unlock">Отпереть</string>
+
+    <string name="section_ha">Home Assistant</string>
+    <string name="field_url">Адрес сервера</string>
+    <string name="field_url_hint">https://example.duckdns.org:8123</string>
+    <string name="field_token">Долгосрочный токен доступа</string>
+    <string name="token_saved">Токен сохранён (скрыт)</string>
+    <string name="token_missing">Токен не сохранён</string>
+    <string name="action_replace_token">Заменить токен</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="saved">Сохранено</string>
+    <string name="action_test_connection">Проверить подключение</string>
+    <string name="test_running">Проверка…</string>
+    <string name="test_ok">Подключено к Home Assistant</string>
+
+    <string name="error_url_empty">Введите адрес сервера</string>
+    <string name="error_url_not_https">Нужен HTTPS: токен не должен передаваться открытым текстом</string>
+    <string name="error_url_malformed">Неверный адрес</string>
+    <string name="error_token_invalid">Введите корректный токен</string>
+    <string name="error_token_store">Не удалось надёжно сохранить токен на этом телефоне</string>
+    <string name="error_not_configured">Сначала сохраните адрес и токен</string>
+    <string name="error_unauthorized">Home Assistant отклонил токен (%1$d)</string>
+    <string name="error_not_found">API Home Assistant не найден по этому адресу (404)</string>
+    <string name="error_http">Home Assistant вернул HTTP %1$d</string>
+    <string name="error_timeout">Home Assistant не ответил вовремя</string>
+    <string name="error_unreachable">Home Assistant недоступен (выключен, неверный адрес или нет сети)</string>
+    <string name="error_bad_response">Неожиданный ответ: это точно Home Assistant?</string>
+    <string name="error_watch_reply">Ответ для часов: %1$s</string>
+
+    <string name="section_favorites">Избранное для часов</string>
+    <string name="favorites_hint">На часы отправляются только эти сущности, в порядке выбора.</string>
+    <string name="favorites_count">Выбрано: %1$d / %2$d</string>
+    <string name="favorites_none">Избранного пока нет</string>
+    <string name="action_choose_favorites">Выбрать избранное</string>
+    <string name="favorites_title">Избранное</string>
+    <string name="favorites_search">Поиск</string>
+    <string name="favorites_loading">Загрузка сущностей…</string>
+    <string name="favorites_empty">Не найдено ни света, ни выключателей, ни замков</string>
+    <string name="favorites_limit">Достигнут лимит избранного (%1$d)</string>
+    <string name="favorites_missing">Не найдено в Home Assistant</string>
+    <string name="action_back">Назад</string>
+    <string name="action_retry">Повторить</string>
+
+    <string name="section_watch">Часы</string>
+    <string name="health_ok">Huawei Health установлен</string>
+    <string name="health_missing">Huawei Health не установлен</string>
+    <string name="wear_permission_granted">Доступ Wear Engine разрешён</string>
+    <string name="wear_permission_missing">Доступ Wear Engine не разрешён</string>
+    <string name="wear_unavailable">Wear Engine недоступен (код %1$d)</string>
+    <string name="action_grant_wear">Разрешить Wear Engine</string>
+    <string name="watch_connected">Подключены часы: %1$s</string>
+    <string name="watch_none">Нет подключённых часов</string>
+    <string name="peer_fingerprint_missing">Отпечаток приложения часов не настроен (watchPeerFingerprint): часы не смогут подключиться.</string>
+    <string name="service_switch">Служба-компаньон</string>
+    <string name="service_switch_desc">Ждёт запросов от часов. Никакой сети, пока часы ничего не просят.</string>
+    <string name="action_allow_notifications">Разрешить уведомление службы</string>
+    <string name="action_preview_sync">Проверить синхронизацию часов</string>
+    <string name="preview_result">Карточек для часов: %1$d · размер в байтах: %2$d</string>
+
+    <string name="section_hyperos">HyperOS / MIUI</string>
+    <string name="hyperos_steps">Чтобы часы всегда могли связаться с телефоном:\n1. Автозапуск: разрешите для этого приложения И для Huawei Health.\n2. Экономия батареи: «Нет ограничений» для этого приложения И для Huawei Health.\n3. Недавние приложения: закрепите это приложение (долгое нажатие → замок).</string>
+    <string name="action_open_app_settings">Открыть настройки приложения</string>
+    <string name="action_open_health_settings">Открыть настройки Huawei Health</string>
+
+    <string name="notif_channel_name">Мост для часов</string>
+    <string name="notif_channel_desc">Держит компаньон доступным для часов</string>
+    <string name="notif_text">Ожидание часов (без сети в фоне)</string>
+</resources>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HA Watch Companion</string>
+
+    <string name="action_turn_on">Allumer</string>
+    <string name="action_turn_off">Éteindre</string>
+    <string name="action_toggle">Basculer</string>
+    <string name="action_lock">Verrouiller</string>
+    <string name="action_unlock">Déverrouiller</string>
+
+    <string name="section_ha">Home Assistant</string>
+    <string name="field_url">URL du serveur</string>
+    <string name="field_url_hint">https://exemple.duckdns.org:8123</string>
+    <string name="field_token">Jeton d\'accès longue durée</string>
+    <string name="token_saved">Jeton enregistré (masqué)</string>
+    <string name="token_missing">Aucun jeton enregistré</string>
+    <string name="action_replace_token">Remplacer le jeton</string>
+    <string name="action_save">Enregistrer</string>
+    <string name="action_cancel">Annuler</string>
+    <string name="saved">Enregistré</string>
+    <string name="action_test_connection">Tester la connexion</string>
+    <string name="test_running">Test en cours…</string>
+    <string name="test_ok">Connecté à Home Assistant</string>
+
+    <string name="error_url_empty">Saisissez l\'URL du serveur</string>
+    <string name="error_url_not_https">HTTPS obligatoire : le jeton ne doit jamais circuler en clair</string>
+    <string name="error_url_malformed">URL invalide</string>
+    <string name="error_token_invalid">Saisissez un jeton valide</string>
+    <string name="error_token_store">Impossible de stocker le jeton de façon sécurisée sur ce téléphone</string>
+    <string name="error_not_configured">Enregistrez d\'abord l\'URL et le jeton</string>
+    <string name="error_unauthorized">Jeton refusé par Home Assistant (%1$d)</string>
+    <string name="error_not_found">API Home Assistant introuvable à cette URL (404)</string>
+    <string name="error_http">Home Assistant a répondu HTTP %1$d</string>
+    <string name="error_timeout">Home Assistant n\'a pas répondu à temps</string>
+    <string name="error_unreachable">Home Assistant injoignable (hors ligne, mauvaise URL ou pas de réseau)</string>
+    <string name="error_bad_response">Réponse inattendue : est-ce bien Home Assistant ?</string>
+    <string name="error_watch_reply">Réponse pour la montre : %1$s</string>
+
+    <string name="section_favorites">Favoris de la montre</string>
+    <string name="favorites_hint">Seules ces entités sont envoyées à la montre, dans l\'ordre où vous les choisissez.</string>
+    <string name="favorites_count">Sélection : %1$d / %2$d</string>
+    <string name="favorites_none">Aucun favori pour l\'instant</string>
+    <string name="action_choose_favorites">Choisir les favoris</string>
+    <string name="favorites_title">Favoris</string>
+    <string name="favorites_search">Rechercher</string>
+    <string name="favorites_loading">Chargement des entités…</string>
+    <string name="favorites_empty">Aucune lumière, prise ou serrure trouvée</string>
+    <string name="favorites_limit">Limite de favoris atteinte (%1$d)</string>
+    <string name="favorites_missing">Introuvable dans Home Assistant</string>
+    <string name="action_back">Retour</string>
+    <string name="action_retry">Réessayer</string>
+
+    <string name="section_watch">Montre</string>
+    <string name="health_ok">Huawei Santé installée</string>
+    <string name="health_missing">Huawei Santé n\'est pas installée</string>
+    <string name="wear_permission_granted">Accès Wear Engine autorisé</string>
+    <string name="wear_permission_missing">Accès Wear Engine non autorisé</string>
+    <string name="wear_unavailable">Wear Engine indisponible (code %1$d)</string>
+    <string name="action_grant_wear">Autoriser Wear Engine</string>
+    <string name="watch_connected">Montre connectée : %1$s</string>
+    <string name="watch_none">Aucune montre connectée</string>
+    <string name="peer_fingerprint_missing">L\'empreinte de l\'app montre n\'est pas configurée (watchPeerFingerprint) : la montre ne pourra pas se connecter.</string>
+    <string name="service_switch">Service compagnon</string>
+    <string name="service_switch_desc">Attend les requêtes de la montre. Aucun accès réseau tant que la montre ne demande rien.</string>
+    <string name="action_allow_notifications">Autoriser la notification du service</string>
+    <string name="action_preview_sync">Prévisualiser la synchro montre</string>
+    <string name="preview_result">Cartes envoyées à la montre : %1$d · taille en octets : %2$d</string>
+
+    <string name="section_hyperos">HyperOS / MIUI</string>
+    <string name="hyperos_steps">Pour que la montre puisse joindre le téléphone à tout moment :\n1. Démarrage automatique : autorisez-le pour cette app ET pour Huawei Santé.\n2. Économiseur de batterie : « Pas de restrictions » pour cette app ET pour Huawei Santé.\n3. Applications récentes : verrouillez cette app (appui long → cadenas).</string>
+    <string name="action_open_app_settings">Ouvrir les réglages de l\'app</string>
+    <string name="action_open_health_settings">Ouvrir les réglages de Huawei Santé</string>
+
+    <string name="notif_channel_name">Passerelle montre</string>
+    <string name="notif_channel_desc">Garde le compagnon joignable par la montre</string>
+    <string name="notif_text">En attente de la montre (aucun réseau en arrière-plan)</string>
+</resources>

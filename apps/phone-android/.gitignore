@@ -1,0 +1,11 @@
+# Android / Gradle (the monorepo root already ignores **/build/ and **/local.properties)
+.gradle/
+.kotlin/
+*.iml
+captures/
+.externalNativeBuild/
+
+# Signing material — never commit keys or their passwords
+*.jks
+*.keystore
+keystore.properties

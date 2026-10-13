@@ -2,10 +2,10 @@
 
 **Status:** active contract · **Protocol version:** `v: 1`
 
-This is the wire contract between the watch app (this repo) and the Android **companion**
-app (separate repo, not yet written). Both sides MUST conform to this document. Changing a
-message shape is a breaking change — bump `v` and update both sides together
-(see [ADR-0003](adr/0003-wear-engine-p2p-transport.md)).
+This is the wire contract between the watch apps (`apps/watch-arkts/`, `apps/watch-lite/`) and the
+Android **companion** app ([`apps/phone-android/`](../apps/phone-android/)). All sides MUST conform to
+this document. Changing a message shape is a breaking change — bump `v` and update all sides
+together (see [ADR-0003](adr/0003-wear-engine-p2p-transport.md)).
 
 The authoritative ArkTS definitions are in
 [`P2pMessages.ets`](../apps/watch-arkts/entry/src/main/ets/domain/model/P2pMessages.ets) and
@@ -21,6 +21,11 @@ sync with them; if they diverge, the `.ets` files win and this doc is a bug.
   `WearEngineP2pClient.setRemoteApp(...)` and are **currently commented out** in
   [`Services.ets`](../apps/watch-arkts/entry/src/main/ets/app/Services.ets) — real-device P2P will not connect
   until the companion's bundleName + signing fingerprint are filled in.
+- **Phone side:** the companion uses the Android Wear Engine SDK (`com.huawei.hms:wearengine`)
+  with `setPeerPkgName(<watch bundleName>)` and `setPeerFingerPrint(<watch app fingerprint>)`, set
+  from the Gradle properties `watchPeerPkg` and `watchPeerFingerprint`. On the lite watch the mirror
+  setting is the companion package and fingerprint in `config.json` (`supportLists`). See
+  [apps/phone-android/README.md](../apps/phone-android/README.md#identifiers).
 - **Direction:** the watch is always the initiator. The companion only sends replies (it never
   pushes unsolicited messages in v1).
 
@@ -132,10 +137,72 @@ interface EntityAction {
 
 ## Companion implementer checklist
 
-- [ ] Listen for P2P messages, parse one JSON object per message.
-- [ ] Echo `id` and `v` on every reply.
-- [ ] Map `SYNC_REQUEST` → HA states → `EntityCard[]`, build `primary`/`secondary` actions.
-- [ ] Map `CALL_SERVICE` → HA REST service call → `ACK { ok }` (with `error` on failure).
-- [ ] Reply within 8s; prefer fast partial data over a slow complete reply.
-- [ ] Localize `name`/`label` (the watch renders them as-is).
-- [ ] Reuse `entity_id`s consistently so single-entity refresh and list refresh agree.
+Implemented by [`apps/phone-android/`](../apps/phone-android/) (`core/…/bridge/WatchRequestHandler.kt`):
+
+- [x] Listen for P2P messages, parse one JSON object per message.
+- [x] Echo `id` and `v` on every reply.
+- [x] Map `SYNC_REQUEST` → HA states → `EntityCard[]`, build `primary`/`secondary` actions.
+- [x] Map `CALL_SERVICE` → HA REST service call → `ACK { ok }` (with `error` on failure).
+- [x] Reply within 8s; prefer fast partial data over a slow complete reply.
+- [x] Localize `name`/`label` (the watch renders them as-is).
+- [x] Reuse `entity_id`s consistently so single-entity refresh and list refresh agree.
+
+## Companion behaviour (v1 clarifications)
+
+What the Android companion does within the v1 shapes above. These are **not** shape changes, so `v`
+stays `1`. Watch apps can rely on them.
+
+- **Favorites only.** `SYNC_RESPONSE.cards` contains only the entities the user picked on the phone
+  (at most 10), in the user's order. `SYNC_ENTITY_REQUEST` for a non-favorite returns no `card`.
+- **No polling, no push.** The companion calls Home Assistant only when a request arrives:
+  - `SYNC_REQUEST` → one `GET /api/states/<id>` per favorite;
+  - `SYNC_ENTITY_REQUEST` → one `GET /api/states/<id>`;
+  - `CALL_SERVICE` → one `POST /api/services/<domain>/<service>`.
+
+  It replies within about 6.5 s.
+- **Partial sync.** The companion prefers fast partial data. A favorite is left out of
+  `SYNC_RESPONSE.cards` in three cases:
+  - it no longer exists in HA (404);
+  - it was not fetched before the deadline;
+  - it failed on its own (network or HTTP error) while other favorites succeeded.
+
+  If **no** card can be fetched, the reply is an `ACK { ok: false }` instead, and so is any auth
+  failure. A watch that caches cards should therefore treat a favorite missing from one
+  `SYNC_RESPONSE` as "unknown right now", not necessarily as deleted.
+- **Actions.** `primary` is chosen from the current state and `secondary` is `[]` (short messages):
+
+  | Domain | State | `primary.service` |
+  |--------|-------|-------------------|
+  | `light`, `switch` | `on` | `turn_off` |
+  | `light`, `switch` | `off` | `turn_on` |
+  | `light`, `switch` | other (`unavailable`, …) | `toggle` |
+  | `lock` | `locked` | `unlock` |
+  | `lock` | other | `lock` |
+
+  **Home Assistant has no `lock.toggle` service**, so a watch must not synthesize one. `icon` is
+  omitted: the watch picks a local icon from `domain`.
+- **`CALL_SERVICE` guard.** The call is refused with `ACK { ok: false, error: "not allowed" }` in
+  any of these cases:
+  - `data.entity_id` is not a favorite;
+  - the domain does not match the entity;
+  - the service is not allowed for the domain (`turn_on`/`turn_off`/`toggle`, `lock`/`unlock`).
+
+  Only `entity_id` is forwarded to HA.
+- **`ACK.error` strings** are short ASCII values. The watch may show them as-is.
+
+  | `error` | Meaning |
+  |---------|---------|
+  | `companion not configured` | No URL or token set on the phone |
+  | `HA returned <code>` | HTTP error from Home Assistant, e.g. `401` = token rejected |
+  | `HA timeout` | Home Assistant did not answer in time |
+  | `HA unreachable` | Home Assistant is offline, the URL is wrong, or there is no network |
+  | `HA bad response` | The reply was not the expected JSON |
+  | `invalid token` | The stored token cannot be sent (e.g. it contains non-ASCII characters) |
+  | `internal error` | Unexpected failure in the companion; the watch still gets a reply |
+  | `timeout` | The 6.5 s reply deadline was hit |
+  | `not allowed` | Refused by the `CALL_SERVICE` guard above |
+  | `unsupported type` | Unknown message `type` |
+  | `unsupported version` | `v` is not `1` |
+  | `missing entity_id`, `missing domain/service`, `bad data` | Malformed request |
+
+  They never contain the token or the URL. A message with no readable `id` gets no reply at all.

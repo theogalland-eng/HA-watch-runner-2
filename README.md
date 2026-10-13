@@ -12,12 +12,24 @@ sharing one design and one wire contract — see [docs/platform-constraints.md](
 | Path | What | Target | Stack |
 |------|------|--------|-------|
 | [`apps/watch-arkts/`](apps/watch-arkts/) | Full-wearable watch app | **Watch 4/5/Ultimate** | ArkTS + ArkUI (Stage), `ArcList` |
-| [`apps/watch-lite/`](apps/watch-lite/) | Lite-wearable watch app | **Watch GT 4/5/6** | JS (FA), HML/CSS, JerryScript (ES5.1) |
-| [`apps/phone-android/`](apps/phone-android/) | Phone companion (P2P ↔ HA REST) | Android | Kotlin + Compose — *not written yet* |
+| [`apps/watch-lite/`](apps/watch-lite/) | Lite-wearable watch app | **Watch GT 4/5/6, GT Runner 2** | JS (FA), HML/CSS, JerryScript (ES5.1) |
+| [`apps/phone-android/`](apps/phone-android/) | Phone companion (P2P ↔ HA REST) | Android 8+ (tested target: HyperOS) | Kotlin + Compose, Wear Engine SDK |
 
 The two watch apps are **mirror architectures in different runtimes** — they share the
 [P2P protocol](docs/p2p-protocol.md), the domain model, and the layering, but **no code**
 (ArkTS compiles to `PANDA` bytecode, lite-JS to a haptobin `.bin` — different engines).
+
+### This fork's target hardware
+
+- **Watch:** Huawei **Watch GT Runner 2**. It is a lite wearable, so it uses `apps/watch-lite/`.
+- **Phone:** Xiaomi **Redmi Note 13 Pro+** on **HyperOS**, with Huawei Health. It uses
+  `apps/phone-android/`.
+- **Priority: battery** on both devices.
+  - The watch syncs when it opens and refreshes one entity after an action.
+  - The phone holds no WebSocket and does no polling: it calls Home Assistant only when the watch
+    asks ([ADR-0007](docs/adr/0007-android-companion-on-demand.md)).
+
+Companion build, install and HyperOS setup: [apps/phone-android/README.md](apps/phone-android/README.md).
 
 ## Why two apps
 
