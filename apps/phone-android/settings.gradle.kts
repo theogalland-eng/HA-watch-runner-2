@@ -26,4 +26,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ha-watch-companion"
-include(":core")
+include(":core", ":app")

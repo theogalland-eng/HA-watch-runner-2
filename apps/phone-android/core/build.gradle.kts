@@ -18,7 +18,7 @@ kotlin {
 dependencies {
     api(libs.kotlinx.coroutines.core)
     api(libs.kotlinx.serialization.json)
-    implementation(libs.okhttp)
+    api(libs.okhttp) // exposed by OkHttpHaClient.factory()
 
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)
