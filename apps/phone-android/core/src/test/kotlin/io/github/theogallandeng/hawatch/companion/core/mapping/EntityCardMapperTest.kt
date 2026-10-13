@@ -1,9 +1,7 @@
 package io.github.theogallandeng.hawatch.companion.core.mapping
 
-import io.github.theogallandeng.hawatch.companion.core.ha.HaState
-import io.github.theogallandeng.hawatch.companion.core.protocol.EntityAction
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
+import io.github.theogallandeng.hawatch.companion.core.haState
+import io.github.theogallandeng.hawatch.companion.core.protocol.Card
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -12,95 +10,60 @@ import org.junit.Test
 
 class EntityCardMapperTest {
 
-    private val mapper = EntityCardMapper(DefaultActionLabels)
+    private val mapper = EntityCardMapper()
 
-    private fun state(entityId: String, state: String, friendlyName: String? = null) = HaState(
-        entityId = entityId,
-        state = state,
-        attributes = JsonObject(friendlyName?.let { mapOf("friendly_name" to JsonPrimitive(it)) } ?: emptyMap()),
-    )
-
-    private fun action(domain: String, service: String, label: String, entityId: String) =
-        EntityAction(label = label, domain = domain, service = service, data = mapOf("entity_id" to entityId))
+    private fun s(entityId: String, state: String) = mapper.map(4, haState(entityId, state, "X"))!!.s
 
     @Test
-    fun `light on maps to a turn_off primary action`() {
-        val card = mapper.map(state("light.kitchen", "on", "Kitchen"))!!
-        assertEquals("light.kitchen", card.entityId)
-        assertEquals("light", card.domain)
-        assertEquals("Kitchen", card.name)
-        assertEquals("on", card.state)
-        assertNull(card.icon)
-        assertEquals(action("light", "turn_off", "Turn off", "light.kitchen"), card.primary)
-        assertTrue(card.secondary.isEmpty())
+    fun `cards carry the slot, the domain code, the name and the state code`() {
+        assertEquals(Card(4, "l", "Kitchen", "1"), mapper.map(4, haState("light.kitchen", "on", "Kitchen")))
+        assertEquals(Card(0, "s", "Router", "0"), mapper.map(0, haState("switch.router", "off", "Router")))
+        assertEquals("x", s("light.a", "unavailable"))
+        assertEquals("?", s("switch.a", "unknown"))
     }
 
     @Test
-    fun `light off maps to turn_on, unavailable to toggle`() {
-        assertEquals(action("light", "turn_on", "Turn on", "light.k"), mapper.map(state("light.k", "off"))!!.primary)
-        assertEquals(action("light", "toggle", "Toggle", "light.k"), mapper.map(state("light.k", "unavailable"))!!.primary)
+    fun `lock states, including the transient and unusual ones`() {
+        val expected = mapOf(
+            "locked" to "L", "unlocked" to "U", "locking" to "g", "unlocking" to "h", "jammed" to "j",
+            "open" to "U", "opening" to "h", "unavailable" to "x", "something" to "?",
+        )
+        for ((state, code) in expected) assertEquals(state, code, s("lock.door", state))
     }
 
     @Test
-    fun `switch follows the same on-off rules`() {
-        assertEquals(action("switch", "turn_off", "Turn off", "switch.router"), mapper.map(state("switch.router", "on"))!!.primary)
-        assertEquals(action("switch", "turn_on", "Turn on", "switch.router"), mapper.map(state("switch.router", "off"))!!.primary)
-        assertEquals(action("switch", "toggle", "Toggle", "switch.router"), mapper.map(state("switch.router", "unknown"))!!.primary)
-    }
-
-    @Test
-    fun `lock never uses toggle, which does not exist in Home Assistant`() {
-        assertEquals(action("lock", "unlock", "Unlock", "lock.front_door"), mapper.map(state("lock.front_door", "locked"))!!.primary)
-        for (s in listOf("unlocked", "jammed", "open", "unavailable")) {
-            assertEquals(s, action("lock", "lock", "Lock", "lock.front_door"), mapper.map(state("lock.front_door", s))!!.primary)
-        }
-    }
-
-    @Test
-    fun `name falls back to the object id and is length-capped`() {
-        assertEquals("front_door", mapper.map(state("lock.front_door", "locked"))!!.name)
-        assertEquals("front_door", mapper.map(state("lock.front_door", "locked", "   "))!!.name)
-        val long = "x".repeat(100)
-        assertEquals(EntityCardMapper.MAX_NAME_LENGTH, mapper.map(state("light.a", "on", long))!!.name.length)
-    }
-
-    @Test
-    fun `unsupported domains are ignored`() {
-        assertNull(mapper.map(state("sensor.temperature", "21.5")))
-        assertNull(mapper.map(state("cover.garage", "open")))
-        assertFalse(mapper.isSupported("sensor.temperature"))
-        assertFalse(mapper.isSupported("not an id"))
+    fun `name falls back to the object id and unsupported domains are ignored`() {
+        assertEquals("front_door", mapper.map(1, haState("lock.front_door", "locked"))!!.n)
+        assertNull(mapper.map(1, haState("climate.house", "heat", "Clim")))
+        assertFalse(mapper.isSupported("climate.house"))
+        assertFalse(mapper.isSupported("light.Bad-Id"))
         assertTrue(mapper.isSupported("light.kitchen"))
     }
 
     @Test
-    fun `labels are injected (localization happens on the phone)`() {
-        val french = object : ActionLabels {
-            override fun turnOn() = "Allumer"
-            override fun turnOff() = "Éteindre"
-            override fun toggle() = "Basculer"
-            override fun lock() = "Verrouiller"
-            override fun unlock() = "Déverrouiller"
-        }
-        val card = EntityCardMapper(french).map(state("light.kitchen", "off"))!!
-        assertEquals("Allumer", card.primary.label)
-    }
-
-    @Test
-    fun `service guard allows only the entity's own domain and its known services`() {
-        assertTrue(mapper.isAllowed("light", "turn_on", "light.kitchen"))
-        assertTrue(mapper.isAllowed("switch", "toggle", "switch.router"))
-        assertTrue(mapper.isAllowed("lock", "unlock", "lock.front_door"))
-        assertFalse("no lock.toggle in HA", mapper.isAllowed("lock", "toggle", "lock.front_door"))
-        assertFalse("unlatch not exposed", mapper.isAllowed("lock", "open", "lock.front_door"))
-        assertFalse("domain mismatch", mapper.isAllowed("switch", "turn_on", "light.kitchen"))
-        assertFalse("unsupported domain", mapper.isAllowed("script", "turn_on", "script.alarm"))
-        assertFalse("arbitrary service", mapper.isAllowed("light", "delete_all", "light.kitchen"))
+    fun `the companion picks the service from the state and unlocking needs the confirmation`() {
+        fun choice(id: String, state: String, confirmed: Boolean = false) = mapper.serviceFor(haState(id, state), confirmed)
+        assertEquals(ServiceChoice.Call("turn_off"), choice("light.a", "on"))
+        assertEquals(ServiceChoice.Call("turn_on"), choice("switch.a", "off"))
+        assertEquals(ServiceChoice.Call("toggle"), choice("light.a", "unavailable"))
+        assertEquals(ServiceChoice.NeedsConfirm, choice("lock.a", "locked"))
+        assertEquals(ServiceChoice.Call("unlock"), choice("lock.a", "locked", confirmed = true))
+        assertEquals(ServiceChoice.Call("lock"), choice("lock.a", "unlocked"))
+        assertEquals(ServiceChoice.Call("lock"), choice("lock.a", "jammed"))
+        assertEquals(ServiceChoice.AlreadyDone, choice("lock.a", "unlocked", confirmed = true))
+        assertEquals(ServiceChoice.AlreadyDone, choice("lock.a", "open", confirmed = true))
+        assertNull(choice("climate.a", "heat"))
     }
 
     @Test
     fun `new domains plug in through the mapper registry`() {
-        val withFan = EntityCardMapper(DefaultActionLabels, EntityCardMapper.DEFAULT_MAPPERS + OnOffDomainMapper("fan"))
-        assertEquals(action("fan", "turn_on", "Turn on", "fan.bedroom"), withFan.map(state("fan.bedroom", "off"))!!.primary)
+        val cover = object : DomainMapper {
+            override val domain = "cover"
+            override fun serviceFor(state: String, confirmed: Boolean) =
+                ServiceChoice.Call(if (state == "open") "close_cover" else "open_cover")
+        }
+        val m = EntityCardMapper(EntityCardMapper.DEFAULT_MAPPERS + cover)
+        assertEquals(Card(6, "c", "Volet", "o"), m.map(6, haState("cover.volet", "open", "Volet")))
+        assertEquals(ServiceChoice.Call("close_cover"), m.serviceFor(haState("cover.volet", "open"), false))
     }
 }

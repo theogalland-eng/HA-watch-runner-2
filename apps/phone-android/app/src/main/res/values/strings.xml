@@ -2,12 +2,6 @@
 <resources>
     <string name="app_name">HA Watch Companion</string>
 
-    <!-- Action labels sent to the watch (keep them short: small round screen). -->
-    <string name="action_turn_on">Turn on</string>
-    <string name="action_turn_off">Turn off</string>
-    <string name="action_toggle">Toggle</string>
-    <string name="action_lock">Lock</string>
-    <string name="action_unlock">Unlock</string>
 
     <!-- Home Assistant section -->
     <string name="section_ha">Home Assistant</string>

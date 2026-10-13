@@ -13,8 +13,12 @@ interface HaClient {
     /** `GET /api/states/<entity_id>` — throws [HaException.NotFound] when the entity does not exist. */
     suspend fun getState(entityId: String): HaState
 
-    /** `POST /api/services/<domain>/<service>` with [data] as the JSON body. */
-    suspend fun callService(domain: String, service: String, data: Map<String, String>)
+    /**
+     * `POST /api/services/<domain>/<service>` with [data] as the JSON body. Returns the states Home
+     * Assistant reports as changed during the call (empty when it reports none or the body is not
+     * the expected list).
+     */
+    suspend fun callService(domain: String, service: String, data: Map<String, String>): List<HaState>
 }
 
 fun interface HaClientFactory {

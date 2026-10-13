@@ -1,28 +1,28 @@
 package io.github.theogallandeng.hawatch.companion.core.protocol
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 
 /**
- * JSON encoding/decoding of P2P messages. Decoding is tolerant (the envelope is read first so that a
- * reply can echo `id` even when the body is wrong); encoding is compact (no whitespace, no nulls) to
- * keep messages short for the watch.
+ * JSON encoding/decoding of v2 P2P messages. Decoding is tolerant (the envelope is read first so
+ * that a reply can echo `id` even when the body is wrong); encoding is compact (no whitespace, no
+ * nulls) to stay under the 1 KB Wear Engine limit.
  */
 object ProtocolCodec {
 
     val json: Json = Json {
         ignoreUnknownKeys = true
-        encodeDefaults = true // `kind`, `type`, `secondary` are required by the contract
-        explicitNulls = false // absent `card` / `icon` / `error` are omitted, not sent as null
+        encodeDefaults = true // `type` is required by the contract
+        explicitNulls = false // absent `code` / `c` are omitted, not sent as null
     }
 
-    /**
-     * Returns null when the message is unusable *and* has no readable `id` (nothing to reply to).
-     */
+    /** `id`: ASCII, at most 16 characters, so that an echoed reply stays within the size budget. */
+    private val ID = Regex("^[A-Za-z0-9_-]{1,16}$")
+
+    /** Returns null when the message is unusable *and* has no valid `id` (nothing to reply to). */
     fun decodeRequest(raw: String): WatchRequest? {
         val obj = try {
             json.parseToJsonElement(raw) as? JsonObject
@@ -30,56 +30,40 @@ object ProtocolCodec {
             null
         } ?: return null
 
-        val id = obj.string("id")?.takeIf { it.isNotEmpty() } ?: return null
-        val vElement = obj["v"]
-        val v = (vElement as? JsonPrimitive)?.intOrNull ?: PROTOCOL_VERSION
-        if (vElement != null && v != PROTOCOL_VERSION) return WatchRequest.Invalid(v, id, "unsupported version")
+        val id = obj.string("id")?.takeIf { ID.matches(it) } ?: return null
+        val v = (obj["v"] as? JsonPrimitive)?.intOrNull
+        if (v != PROTOCOL_VERSION) return WatchRequest.Invalid(PROTOCOL_VERSION, id, AckCode.VERSION)
 
         return when (obj.string("type")) {
             MsgType.SYNC_REQUEST -> WatchRequest.Sync(v, id)
-            MsgType.SYNC_ENTITY_REQUEST -> {
-                val entityId = obj.string("entity_id")
-                if (entityId.isNullOrEmpty()) WatchRequest.Invalid(v, id, "missing entity_id")
-                else WatchRequest.SyncEntity(v, id, entityId)
-            }
             MsgType.CALL_SERVICE -> {
-                val domain = obj.string("domain")
-                val service = obj.string("service")
-                val data = stringMap(obj["data"])
+                val k = (obj["k"] as? JsonPrimitive)?.takeUnless { it.isString }?.intOrNull
+                val fr = (obj["fr"] as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull
+                val act = obj.string("act")
                 when {
-                    domain.isNullOrEmpty() || service.isNullOrEmpty() -> WatchRequest.Invalid(v, id, "missing domain/service")
-                    data == null -> WatchRequest.Invalid(v, id, "bad data")
-                    else -> WatchRequest.CallService(v, id, domain, service, data)
+                    k == null || fr == null -> WatchRequest.Invalid(v, id, AckCode.BAD)
+                    act != null && act != ACT_CONFIRM -> WatchRequest.Invalid(v, id, AckCode.BAD)
+                    else -> WatchRequest.CallService(v, id, k, fr, confirm = act == ACT_CONFIRM)
                 }
             }
-            else -> WatchRequest.Invalid(v, id, "unsupported type")
+            else -> WatchRequest.Invalid(v, id, AckCode.BAD)
         }
     }
 
-    fun encodeSync(req: WatchRequest, cards: List<EntityCard>): String =
-        json.encodeToString(SyncResponse.serializer(), SyncResponse(v = req.v, id = req.id, cards = cards))
+    fun encodeSync(req: WatchRequest, fr: Long, cards: List<Card>): String =
+        json.encodeToString(SyncResponse.serializer(), SyncResponse(v = PROTOCOL_VERSION, id = req.id, fr = fr, c = cards))
 
-    fun encodeSyncEntity(req: WatchRequest, card: EntityCard?): String =
-        json.encodeToString(SyncEntityResponse.serializer(), SyncEntityResponse(v = req.v, id = req.id, card = card))
+    fun encodeAck(req: WatchRequest, card: Card?): String =
+        json.encodeToString(Ack.serializer(), Ack(v = PROTOCOL_VERSION, id = req.id, ok = true, c = card))
 
-    fun encodeAck(req: WatchRequest, ok: Boolean, error: String? = null): String =
-        json.encodeToString(Ack.serializer(), Ack(v = req.v, id = req.id, ok = ok, error = error))
+    fun encodeError(req: WatchRequest, code: String): String =
+        json.encodeToString(Ack.serializer(), Ack(v = PROTOCOL_VERSION, id = req.id, ok = false, code = code))
 
     private fun JsonObject.string(key: String): String? {
         val p = this[key] as? JsonPrimitive ?: return null
         return if (p.isString) p.content else null
     }
 
-    /** `Record<string, string>`: primitives are accepted and stringified, nested values are rejected. */
-    private fun stringMap(element: JsonElement?): Map<String, String>? {
-        if (element == null || element is JsonNull) return emptyMap()
-        val obj = element as? JsonObject ?: return null
-        val out = LinkedHashMap<String, String>(obj.size)
-        for ((k, value) in obj) {
-            val p = value as? JsonPrimitive ?: return null
-            if (p is JsonNull) continue
-            out[k] = p.content
-        }
-        return out
-    }
+    /** `CALL_SERVICE.act` value that allows unlocking. */
+    const val ACT_CONFIRM = "confirm"
 }

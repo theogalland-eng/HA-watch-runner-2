@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2025-01-01
 - **Revised:** 2026-10-13 — the companion now exists in this monorepo (`apps/phone-android/`, see [ADR-0007](0007-android-companion-on-demand.md))
+- **Message shapes superseded** by [ADR-0008](0008-p2p-protocol-v2-compact.md) (compact v2); the transport decision stands.
 
 ## Context
 

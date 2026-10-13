@@ -11,6 +11,7 @@ import io.github.theogallandeng.hawatch.companion.core.config.CompanionSettings
 import io.github.theogallandeng.hawatch.companion.core.config.HaInput
 import io.github.theogallandeng.hawatch.companion.core.ha.HaException
 import io.github.theogallandeng.hawatch.companion.core.protocol.MsgType
+import io.github.theogallandeng.hawatch.companion.core.protocol.PROTOCOL_VERSION
 import io.github.theogallandeng.hawatch.companion.core.protocol.ProtocolCodec
 import io.github.theogallandeng.hawatch.companion.service.BridgeServiceController
 import io.github.theogallandeng.hawatch.companion.wear.WearEngineStatus
@@ -139,15 +140,15 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun previewSync() {
         _state.update { it.copy(preview = ActionState.Running) }
         viewModelScope.launch {
-            val reply = graph.newRequestHandler().handle("""{"v":1,"id":"preview","type":"${MsgType.SYNC_REQUEST}"}""")
+            val reply = graph.newRequestHandler().handle("""{"v":$PROTOCOL_VERSION,"id":"preview","type":"${MsgType.SYNC_REQUEST}"}""")
             val obj = reply?.let { ProtocolCodec.json.parseToJsonElement(it) as? JsonObject }
             val type = (obj?.get("type") as? JsonPrimitive)?.content
             val result = if (type == MsgType.SYNC_RESPONSE) {
-                val count = (obj?.get("cards") as? JsonArray)?.size ?: 0
+                val count = (obj?.get("c") as? JsonArray)?.size ?: 0
                 val bytes = reply.orEmpty().toByteArray(Charsets.UTF_8).size
                 ActionState.Done(UiText(R.string.preview_result, listOf(count, bytes)), success = true)
             } else {
-                val error = (obj?.get("error") as? JsonPrimitive)?.content ?: "?"
+                val error = (obj?.get("code") as? JsonPrimitive)?.content ?: "?"
                 ActionState.Done(UiText(R.string.error_watch_reply, listOf(error)), success = false)
             }
             _state.update { it.copy(preview = result) }

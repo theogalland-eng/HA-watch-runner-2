@@ -1,47 +1,49 @@
 package io.github.theogallandeng.hawatch.companion.core.mapping
 
-import io.github.theogallandeng.hawatch.companion.core.protocol.EntityAction
-
 /**
- * Per-domain HA semantics. **Extension point:** supporting a new domain (cover, fan, input_boolean,
- * scene…) means adding one implementation to [EntityCardMapper.DEFAULT_MAPPERS] (+ labels if needed).
- * The watch stays presentation-only and needs no change for that.
+ * Per-domain HA semantics. In protocol v2 the watch only says "act on slot k" (plus
+ * `act: "confirm"` to unlock); the companion picks the service from the entity's current state.
+ * **Extension point:** a new domain (cover, fan, scene…) is one implementation added to
+ * [EntityCardMapper.DEFAULT_MAPPERS], plus its code in `CardCodes` and in `docs/p2p-protocol.md`.
  */
 interface DomainMapper {
     val domain: String
 
-    /** Services the watch may call for this domain (guard for `CALL_SERVICE`). */
-    val allowedServices: Set<String>
+    /** What to do for an entity currently in [state]; [confirmed] = `act: "confirm"`. */
+    fun serviceFor(state: String, confirmed: Boolean): ServiceChoice
+}
 
-    /** The main tap action for an entity in [state]. */
-    fun primaryAction(entityId: String, state: String, labels: ActionLabels): EntityAction
+sealed interface ServiceChoice {
+    data class Call(val service: String) : ServiceChoice
+
+    /** Unlocking without the watch's confirmation: refused with `ACK.code = "confirm"`. */
+    data object NeedsConfirm : ServiceChoice
+
+    /** Already in the confirmed target state: no call, the current card is returned. */
+    data object AlreadyDone : ServiceChoice
 }
 
 /** Binary on/off domains: `light`, `switch` (and later e.g. `fan`, `input_boolean`). */
 class OnOffDomainMapper(override val domain: String) : DomainMapper {
-    override val allowedServices: Set<String> = setOf("turn_on", "turn_off", "toggle")
-
-    // Explicit turn_on/turn_off rather than toggle: idempotent if the watch shows a stale state.
-    override fun primaryAction(entityId: String, state: String, labels: ActionLabels): EntityAction =
-        when (state) {
-            "on" -> serviceAction(domain, "turn_off", labels.turnOff(), entityId)
-            "off" -> serviceAction(domain, "turn_on", labels.turnOn(), entityId)
-            else -> serviceAction(domain, "toggle", labels.toggle(), entityId) // unavailable / unknown
-        }
+    // Explicit turn_on/turn_off from the state just read; toggle only when the state is unknown.
+    override fun serviceFor(state: String, confirmed: Boolean): ServiceChoice = when (state) {
+        "on" -> ServiceChoice.Call("turn_off")
+        "off" -> ServiceChoice.Call("turn_on")
+        else -> ServiceChoice.Call("toggle")
+    }
 }
 
 /**
- * `lock`. Home Assistant has **no `lock.toggle` service**, so the action depends on the state.
- * `lock.open` (unlatch) is deliberately not exposed to the watch.
+ * `lock`. Home Assistant has **no `lock.toggle` service**. Unlocking always needs the watch's
+ * confirmation (`act: "confirm"`); locking never does. `lock.open` (unlatch) is never used.
  */
 class LockDomainMapper : DomainMapper {
     override val domain: String = "lock"
-    override val allowedServices: Set<String> = setOf("lock", "unlock")
 
-    override fun primaryAction(entityId: String, state: String, labels: ActionLabels): EntityAction =
-        if (state == "locked") serviceAction(domain, "unlock", labels.unlock(), entityId)
-        else serviceAction(domain, "lock", labels.lock(), entityId) // unlocked, jammed, open, unknown…
+    override fun serviceFor(state: String, confirmed: Boolean): ServiceChoice = when {
+        confirmed && (state == "unlocked" || state == "open") -> ServiceChoice.AlreadyDone
+        confirmed -> ServiceChoice.Call("unlock")
+        state == "locked" -> ServiceChoice.NeedsConfirm
+        else -> ServiceChoice.Call("lock")
+    }
 }
-
-internal fun serviceAction(domain: String, service: String, label: String, entityId: String): EntityAction =
-    EntityAction(label = label, domain = domain, service = service, data = mapOf("entity_id" to entityId))

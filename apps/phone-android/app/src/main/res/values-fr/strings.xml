@@ -2,12 +2,6 @@
 <resources>
     <string name="app_name">HA Watch Companion</string>
 
-    <string name="action_turn_on">Allumer</string>
-    <string name="action_turn_off">Éteindre</string>
-    <string name="action_toggle">Basculer</string>
-    <string name="action_lock">Verrouiller</string>
-    <string name="action_unlock">Déverrouiller</string>
-
     <string name="section_ha">Home Assistant</string>
     <string name="field_url">URL du serveur</string>
     <string name="field_url_hint">https://exemple.duckdns.org:8123</string>

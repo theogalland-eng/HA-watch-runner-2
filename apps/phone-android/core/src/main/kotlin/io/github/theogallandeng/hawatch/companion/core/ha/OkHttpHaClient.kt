@@ -47,10 +47,16 @@ class OkHttpHaClient(
         return decode { json.decodeFromString(HaState.serializer(), body) }
     }
 
-    override suspend fun callService(domain: String, service: String, data: Map<String, String>) {
+    override suspend fun callService(domain: String, service: String, data: Map<String, String>): List<HaState> {
         val url = url("api/services").newBuilder().addPathSegment(domain).addPathSegment(service).build()
         val body = JsonObject(data.mapValues { JsonPrimitive(it.value) }).toString()
-        execute(request(url).post(body.toRequestBody(JSON_MEDIA_TYPE)).build())
+        val reply = execute(request(url).post(body.toRequestBody(JSON_MEDIA_TYPE)).build())
+        // The call succeeded: an unexpected body only means "no changed states to report".
+        return try {
+            json.decodeFromString(ListSerializer(HaState.serializer()), reply)
+        } catch (e: IllegalArgumentException) {
+            emptyList()
+        }
     }
 
     private suspend fun get(url: HttpUrl): String = execute(request(url).get().build())

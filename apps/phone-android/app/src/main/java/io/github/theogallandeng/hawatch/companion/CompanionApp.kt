@@ -9,7 +9,6 @@ import io.github.theogallandeng.hawatch.companion.core.ha.HaClientFactory
 import io.github.theogallandeng.hawatch.companion.core.ha.OkHttpHaClient
 import io.github.theogallandeng.hawatch.companion.core.mapping.EntityCardMapper
 import io.github.theogallandeng.hawatch.companion.data.AndroidCompanionConfig
-import io.github.theogallandeng.hawatch.companion.data.ResourceActionLabels
 import io.github.theogallandeng.hawatch.companion.data.SecureTokenStore
 import io.github.theogallandeng.hawatch.companion.data.SettingsStore
 
@@ -32,7 +31,7 @@ class AppGraph(context: Context) {
     /** One shared OkHttp client: a single small connection pool for the whole app. */
     val haClientFactory: HaClientFactory = OkHttpHaClient.factory()
 
-    val mapper = EntityCardMapper(ResourceActionLabels(context))
+    val mapper = EntityCardMapper()
 
     /** Logs only message types, ids, sizes and error codes — never payload contents or secrets. */
     val logger = CompanionLogger { Log.i(LOG_TAG, it) }

@@ -176,6 +176,9 @@ shaped this way: [ADR-0001](docs/adr/0001-clean-architecture-layering.md)..[0004
 - **Phone-side behavior lives in `apps/phone-android/`.** Any change to the watch↔phone exchange
   updates [docs/p2p-protocol.md](docs/p2p-protocol.md) **and** the companion's `core/` (plus its tests)
   in the same PR.
+- **The companion speaks protocol v2** (compact, [ADR-0008](docs/adr/0008-p2p-protocol-v2-compact.md)),
+  with the lite watch as its client. This ArkTS app still speaks v1, so it no longer talks to the
+  companion.
 
 ## Phone companion (`apps/phone-android/`)
 
@@ -204,9 +207,11 @@ Rules:
   - Logs carry only types, ids, sizes and error codes.
   - Never commit `local.properties` / `keystore.properties` / `*.jks`.
 - **i18n.** Every string lives in `values/` (EN), `values-fr/` and `values-ru/`. A unit test enforces
-  the same keys and placeholders. Action labels are sent to the watch, so keep them short.
-- **New HA domain.** Add a `DomainMapper` in `core/mapping/` with its `allowedServices` and labels,
-  plus tests.
+  the same keys and placeholders. Nothing localised is sent to the watch (v2 sends codes).
+- **New HA domain.** Add a `DomainMapper` in `core/mapping/` (it picks the service from the state),
+  a code in `CardCodes` **and** in the tables of [docs/p2p-protocol.md](docs/p2p-protocol.md), plus tests.
+- **Message size.** Every P2P message stays ≤ 900 bytes (Wear Engine: 1 KB). `ProtocolCodecTest`
+  checks the worst case.
 
 Gotchas:
 - **`watchPeerFingerprint` is a placeholder** (`gradle.properties`; override in `local.properties`).

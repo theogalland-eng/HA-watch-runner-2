@@ -1,129 +1,97 @@
 package io.github.theogallandeng.hawatch.companion.core.protocol
 
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProtocolCodecTest {
 
-    private fun parse(json: String): JsonObject = ProtocolCodec.json.parseToJsonElement(json).jsonObject
+    private fun decode(raw: String) = ProtocolCodec.decodeRequest(raw)
 
     @Test
-    fun `decodes SYNC_REQUEST from the contract example`() {
-        val req = ProtocolCodec.decodeRequest("""{ "v": 1, "id": "sync-ab12", "type": "SYNC_REQUEST" }""")
-        assertEquals(WatchRequest.Sync(1, "sync-ab12"), req)
-    }
-
-    @Test
-    fun `decodes SYNC_ENTITY_REQUEST`() {
-        val req = ProtocolCodec.decodeRequest(
-            """{ "v": 1, "id": "get_card-cd34", "type": "SYNC_ENTITY_REQUEST", "entity_id": "light.kitchen" }""",
-        )
-        assertEquals(WatchRequest.SyncEntity(1, "get_card-cd34", "light.kitchen"), req)
-    }
-
-    @Test
-    fun `decodes CALL_SERVICE`() {
-        val req = ProtocolCodec.decodeRequest(
-            """{ "v": 1, "id": "svc-ef56", "type": "CALL_SERVICE",
-                 "domain": "light", "service": "toggle", "data": { "entity_id": "light.kitchen" } }""",
+    fun `decodes SYNC_REQUEST and CALL_SERVICE`() {
+        assertEquals(WatchRequest.Sync(2, "sync-1"), decode("""{"v":2,"id":"sync-1","type":"SYNC_REQUEST"}"""))
+        assertEquals(
+            WatchRequest.CallService(2, "svc-1", k = 3, fr = 55808668, confirm = true),
+            decode("""{"v":2,"id":"svc-1","type":"CALL_SERVICE","k":3,"fr":55808668,"act":"confirm"}"""),
         )
         assertEquals(
-            WatchRequest.CallService(1, "svc-ef56", "light", "toggle", mapOf("entity_id" to "light.kitchen")),
-            req,
+            WatchRequest.CallService(2, "svc-2", k = 0, fr = 1, confirm = false),
+            decode("""{"v":2,"id":"svc-2","type":"CALL_SERVICE","k":0,"fr":1,"extra":true}"""),
         )
     }
 
     @Test
-    fun `unknown fields are ignored`() {
-        val req = ProtocolCodec.decodeRequest("""{"v":1,"id":"a","type":"SYNC_REQUEST","extra":{"x":[1,2]}}""")
-        assertEquals(WatchRequest.Sync(1, "a"), req)
+    fun `a readable envelope with bad content becomes Invalid so that the id can be echoed`() {
+        val cases = mapOf(
+            """{"v":2,"id":"a","type":"CALL_SERVICE","fr":1}""" to AckCode.BAD,
+            """{"v":2,"id":"a","type":"CALL_SERVICE","k":"3","fr":1}""" to AckCode.BAD,
+            """{"v":2,"id":"a","type":"CALL_SERVICE","k":1.5,"fr":1}""" to AckCode.BAD,
+            """{"v":2,"id":"a","type":"CALL_SERVICE","k":1,"fr":1,"act":"force"}""" to AckCode.BAD,
+            """{"v":2,"id":"a","type":"SYNC_ENTITY_REQUEST","k":1}""" to AckCode.BAD,
+            """{"v":1,"id":"a","type":"SYNC_REQUEST"}""" to AckCode.VERSION,
+            """{"id":"a","type":"SYNC_REQUEST"}""" to AckCode.VERSION,
+        )
+        for ((raw, code) in cases) assertEquals(raw, WatchRequest.Invalid(2, "a", code), decode(raw))
     }
 
     @Test
-    fun `unreadable messages without id are dropped`() {
-        assertNull(ProtocolCodec.decodeRequest("not json"))
-        assertNull(ProtocolCodec.decodeRequest("[1,2,3]"))
-        assertNull(ProtocolCodec.decodeRequest("""{"v":1,"type":"SYNC_REQUEST"}"""))
-        assertNull(ProtocolCodec.decodeRequest("""{"v":1,"id":"","type":"SYNC_REQUEST"}"""))
+    fun `messages without a valid id get no reply`() {
+        for (raw in listOf(
+            "not json",
+            """["SYNC_REQUEST"]""",
+            """{"v":2,"type":"SYNC_REQUEST"}""",
+            """{"v":2,"id":"","type":"SYNC_REQUEST"}""",
+            """{"v":2,"id":"12345678901234567","type":"SYNC_REQUEST"}""",
+            """{"v":2,"id":"sync-é","type":"SYNC_REQUEST"}""",
+        )) assertNull(raw, decode(raw))
     }
 
     @Test
-    fun `readable envelope with bad content becomes Invalid so the id can be echoed`() {
+    fun `replies are compact, without whitespace or null fields`() {
+        val req = WatchRequest.Sync(2, "s1")
         assertEquals(
-            WatchRequest.Invalid(1, "x1", "unsupported type"),
-            ProtocolCodec.decodeRequest("""{"v":1,"id":"x1","type":"PING"}"""),
+            """{"v":2,"id":"s1","type":"SYNC_RESPONSE","fr":7,"c":[{"k":0,"d":"l","n":"Salon","s":"1"}]}""",
+            ProtocolCodec.encodeSync(req, 7, listOf(Card(0, "l", "Salon", "1"))),
         )
+        assertEquals("""{"v":2,"id":"s1","type":"ACK","ok":true}""", ProtocolCodec.encodeAck(req, null))
         assertEquals(
-            WatchRequest.Invalid(1, "x2", "missing entity_id"),
-            ProtocolCodec.decodeRequest("""{"v":1,"id":"x2","type":"SYNC_ENTITY_REQUEST"}"""),
+            """{"v":2,"id":"s1","type":"ACK","ok":true,"c":{"k":2,"d":"k","n":"Porte","s":"U"}}""",
+            ProtocolCodec.encodeAck(req, Card(2, "k", "Porte", "U")),
         )
-        assertEquals(
-            WatchRequest.Invalid(1, "x3", "missing domain/service"),
-            ProtocolCodec.decodeRequest("""{"v":1,"id":"x3","type":"CALL_SERVICE","data":{}}"""),
-        )
-        assertEquals(
-            WatchRequest.Invalid(1, "x4", "bad data"),
-            ProtocolCodec.decodeRequest("""{"v":1,"id":"x4","type":"CALL_SERVICE","domain":"light","service":"toggle","data":{"a":{"b":1}}}"""),
-        )
-        assertEquals(
-            WatchRequest.Invalid(2, "x5", "unsupported version"),
-            ProtocolCodec.decodeRequest("""{"v":2,"id":"x5","type":"SYNC_REQUEST"}"""),
-        )
+        assertEquals("""{"v":2,"id":"s1","type":"ACK","ok":false,"code":"stale"}""", ProtocolCodec.encodeError(req, AckCode.STALE))
     }
 
+    /**
+     * Wear Engine caps a P2P message at 1 KB in both directions: every v2 message stays ≤ 900 bytes
+     * in the worst case (10 favorites, 20-character accented names, 12-byte sensor values, 16-char
+     * ids, the largest `fr`). Sizes are printed for the PR.
+     */
     @Test
-    fun `missing v defaults to the current protocol version`() {
-        assertEquals(WatchRequest.Sync(PROTOCOL_VERSION, "a"), ProtocolCodec.decodeRequest("""{"id":"a","type":"SYNC_REQUEST"}"""))
-    }
-
-    @Test
-    fun `SYNC_RESPONSE echoes id and v and carries the full card shape`() {
-        val card = EntityCard(
-            entityId = "light.kitchen",
-            domain = "light",
-            name = "Kitchen",
-            state = "off",
-            primary = EntityAction(label = "Turn on", domain = "light", service = "turn_on", data = mapOf("entity_id" to "light.kitchen")),
-        )
-        val out = parse(ProtocolCodec.encodeSync(WatchRequest.Sync(1, "sync-ab12"), listOf(card)))
-
-        assertEquals("1", out["v"]!!.jsonPrimitive.content)
-        assertEquals("sync-ab12", out["id"]!!.jsonPrimitive.content)
-        assertEquals("SYNC_RESPONSE", out["type"]!!.jsonPrimitive.content)
-        val c = out["cards"]!!.let { ProtocolCodec.json.decodeFromJsonElement(EntityCard.serializer(), (it as kotlinx.serialization.json.JsonArray)[0]) }
-        assertEquals(card, c)
-        val raw = out["cards"].toString()
-        assertTrue("kind must be sent", raw.contains("\"kind\":\"SERVICE\""))
-        assertTrue("secondary must be sent even when empty", raw.contains("\"secondary\":[]"))
-        assertTrue("entity_id uses snake_case", raw.contains("\"entity_id\":\"light.kitchen\""))
-        assertFalse("absent icon is omitted, not null", raw.contains("icon"))
-    }
-
-    @Test
-    fun `SYNC_ENTITY_RESPONSE omits card when absent`() {
-        val out = ProtocolCodec.encodeSyncEntity(WatchRequest.SyncEntity(1, "get_card-cd34", "light.x"), null)
-        assertEquals("""{"v":1,"id":"get_card-cd34","type":"SYNC_ENTITY_RESPONSE"}""", out)
-    }
-
-    @Test
-    fun `ACK is compact and omits error on success`() {
-        val req = WatchRequest.CallService(1, "svc-ef56", "light", "toggle", emptyMap())
-        assertEquals("""{"v":1,"id":"svc-ef56","type":"ACK","ok":true}""", ProtocolCodec.encodeAck(req, ok = true))
-        assertEquals(
-            """{"v":1,"id":"svc-ef56","type":"ACK","ok":false,"error":"HA returned 401"}""",
-            ProtocolCodec.encodeAck(req, ok = false, error = "HA returned 401"),
-        )
-    }
-
-    @Test
-    fun `replies echo the request version verbatim`() {
-        val req = WatchRequest.Invalid(2, "x5", "unsupported version")
-        assertEquals("2", parse(ProtocolCodec.encodeAck(req, ok = false, error = req.reason))["v"]!!.jsonPrimitive.content)
+    fun `worst cases stay within 900 bytes in both directions`() {
+        val id = "abcdefghijklmnop"
+        val fr = 0x7FFFFFFFL
+        val accented = "Éèàùçéèàùçéèàùçéèàùç" // 20 characters, 40 bytes
+        val sensor = "-12345,6 °C°" // 12 characters, 14 bytes: cut to 12 bytes
+        val tricky = listOf(accented, "\"\\\"\\\"\\\"\\\"\\\"\\\"\\\"\\\"\\\"\\\"", "🏠".repeat(20), "d’entrée".repeat(4))
+        val req = WatchRequest.Sync(2, id)
+        val messages = mutableMapOf<String, String>()
+        messages["SYNC_REQUEST"] = """{"v":2,"id":"$id","type":"SYNC_REQUEST"}"""
+        messages["CALL_SERVICE"] = """{"v":2,"id":"$id","type":"CALL_SERVICE","k":9,"fr":$fr,"act":"confirm"}"""
+        for (name in tricky) {
+            val sensors = (0..9).map { CardCodes.card(it, "sensor", name, sensor)!! }
+            val states = (0..9).map { CardCodes.card(it, "lock", name, "unavailable")!! }
+            messages["SYNC_RESPONSE sensors ${name.take(4)}"] = ProtocolCodec.encodeSync(req, fr, sensors)
+            messages["SYNC_RESPONSE states ${name.take(4)}"] = ProtocolCodec.encodeSync(req, fr, states)
+            messages["ACK card ${name.take(4)}"] = ProtocolCodec.encodeAck(req, sensors[9])
+        }
+        messages["ACK error"] = ProtocolCodec.encodeError(req, AckCode.INTERNAL)
+        for ((label, json) in messages) {
+            val bytes = json.toByteArray(Charsets.UTF_8).size
+            println("worst case: $label = $bytes bytes")
+            assertTrue("$label is $bytes bytes", bytes <= 900)
+        }
+        assertEquals(896, messages.getValue("SYNC_RESPONSE sensors Éèàù").toByteArray(Charsets.UTF_8).size)
     }
 }
