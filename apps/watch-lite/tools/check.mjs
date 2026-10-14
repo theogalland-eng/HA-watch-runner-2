@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Static checks for the lite watch app, runnable without DevEco:
-//  1. each page (hml + css + js + imported local modules): size without comments, with warnings
-//     from 40 KB, 44 KB (plan B) and 48 KB (to be confirmed on the watch); raw and comment- and
-//     indentation-free sizes are shown too, and the share of the Wear Engine stub (demo only);
+//  1. each JS bundle (app.js, and each page's hml + css + js) with its local imports: estimated
+//     compiled size ≤ 48 KB (lite refuses more on the watch), also with Huawei's wearengine.js in
+//     place of the stub; pages must not import core modules; real compiled sizes when built;
 //  2. icons: exactly the 26 design icons, each < 1 KB; every PNG's decoded RGBA cost;
 //  3. HAP estimate (sources + decoded images) ≤ 10 MB;
 //  4. CSS / HML restricted to what lite supports (properties, selectors, components, events);
 //  5. no signing material in build-profile.json5 (it must never be committed).
-// Limits: docs/platform-constraints.md. The 48 KB is not enforced by the DevEco Previewer (an 84.8 KB
-// compiled page loads): it is a warning until the watch test decides (README § Watch test).
+// Limits: docs/platform-constraints.md (the Previewer logs "File exceeds size limit but allowed on
+// simulator" above ~48 KB of compiled JS per bundle; the watch refuses it).
 // Lite subset: OpenHarmony arkui-js-lite reference.
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve, extname } from 'node:path';
@@ -25,7 +25,6 @@ const MEDIA = join(APP, 'entry/src/main/resources');
 
 const KB = 1024;
 const PAGE_LIMIT = 48 * KB;
-const PAGE_WARN = 40 * KB;
 const PLAN_B = 44 * KB;
 const HAP_LIMIT = 10 * KB * KB;
 
@@ -42,8 +41,19 @@ function walk(dir, out = []) {
   return out;
 }
 
-// ---- 1. Page sizes -------------------------------------------------------------------------
+// ---- 1. Bundle sizes ------------------------------------------------------------------------
+// Lite compiles app.js and each page into separate JS bundles and refuses one above ~48 KB on the
+// watch (the Previewer only logs "File exceeds size limit but allowed on simulator"). A module imported
+// by two bundles is copied into both. Estimate per bundle = its sources without comments × RATIO
+// (measured 1.22–1.26 with DevEco 6.1; 1.3 keeps a margin). The bundle holding the Wear Engine stub is
+// also estimated with Huawei's file in its place (a reserve of HUAWEI_SDK bytes, size unknown).
 const STUB = join(JS_ROOT, 'common/services/wearengine.js');
+const RATIO = 1.3;
+const HUAWEI_SDK = 12 * KB;
+/** Modules of the app-level core (app.js bundle): a page importing one would carry it twice. */
+const CORE_ONLY = ['common/logic/session.js', 'common/logic/protocol.js', 'common/logic/cache.js', 'common/app/core.js',
+  'common/services/p2pClient.js', 'common/services/haRepository.js', 'common/services/wearengine.js',
+  'common/config/peer.js', 'common/config/dev.js', 'common/config/demo.js'].map((f) => join(JS_ROOT, f));
 
 function localImports(file, seen, skip) {
   if (seen.has(file) || file === skip || !existsSync(file)) return;
@@ -57,32 +67,53 @@ function localImports(file, seen, skip) {
   }
 }
 
+const codeOf = (files) => [...files].reduce((n, f) => n + sourceSizes(readFileSync(f, 'utf8'), extname(f)).code, 0);
+const rawOf = (files) => [...files].reduce((n, f) => n + sourceSizes(readFileSync(f, 'utf8'), extname(f)).raw, 0);
+
 const config = JSON.parse(readFileSync(join(APP, 'entry/src/main/config.json'), 'utf8'));
 const pages = config.module.js[0].pages;
-console.log('Pages (hml + css + js + local imports; warnings on the size without comments: 40 KB, 44 KB plan B, 48 KB to confirm on the watch):');
-for (const page of pages) {
+const bundles = [{ name: 'app.js', entries: [join(JS_ROOT, 'app.js')], page: false }]
+  .concat(pages.map((p) => ({ name: p, entries: ['.hml', '.css', '.js'].map((ext) => join(JS_ROOT, p + ext)), page: true })));
+console.log(`Bundles (estimated compiled size = sources without comments × ${RATIO}; warning 44 KB, error 48 KB per bundle):`);
+for (const b of bundles) {
   const seen = new Set();
-  for (const ext of ['.hml', '.css', '.js']) localImports(join(JS_ROOT, page + ext), seen);
-  const size = { raw: 0, code: 0, tight: 0 };
-  for (const f of seen) {
-    const s = sourceSizes(readFileSync(f, 'utf8'), extname(f));
-    size.raw += s.raw;
-    size.code += s.code;
-    size.tight += s.tight;
+  for (const f of b.entries) localImports(f, seen);
+  const code = codeOf(seen);
+  let estimate = Math.round(code * RATIO);
+  let note = '';
+  if (seen.has(STUB)) {
+    const withoutStub = new Set();
+    for (const f of b.entries) localImports(f, withoutStub, STUB);
+    const stubOnly = [...seen].filter((f) => !withoutStub.has(f));
+    const isDemo = readFileSync(STUB, 'utf8').includes('P2pClient.isStub = true');
+    const sdk = isDemo ? HUAWEI_SDK : rawOf([STUB]);
+    const onWatch = Math.round(codeOf(withoutStub) * RATIO) + sdk;
+    note = isDemo
+      ? ` · on the watch, with Huawei's wearengine.js (reserve ${fmt(HUAWEI_SDK)}) instead of the stub + demo (${stubOnly.map((f) => relative(JS_ROOT, f)).join(', ')}): ~${fmt(onWatch)}`
+      : ` · with Huawei's wearengine.js (${fmt(sdk)} raw)`;
+    estimate = Math.max(estimate, onWatch);
   }
-  const ok = size.code <= PAGE_LIMIT;
-  if (!ok) warnings.push(`${page}: ${fmt(size.code)} without comments > 48 KB: to be confirmed on the watch, not enforced by the Previewer (README § Watch test)`);
-  else if (size.code > PLAN_B) warnings.push(`${page}: ${fmt(size.code)} without comments > 44 KB (plan B threshold): the watch test decides (README § Watch test)`);
-  else if (size.code > PAGE_WARN) warnings.push(`${page}: ${fmt(size.code)} without comments > 40 KB`);
-  console.log(`  ${ok ? 'ok ' : 'big'} ${page.padEnd(20)} ${fmt(size.code).padStart(8)} without comments · ${fmt(size.raw)} raw · ${fmt(size.tight)} without comments or indentation  (${seen.size} files)`);
-  const app = new Set();
-  for (const ext of ['.hml', '.css', '.js']) localImports(join(JS_ROOT, page + ext), app, STUB);
-  const stub = [...seen].filter((f) => !app.has(f));
-  if (stub.length) {
-    const code = stub.reduce((n, f) => n + sourceSizes(readFileSync(f, 'utf8'), extname(f)).code, 0);
-    const demo = readFileSync(STUB, 'utf8').includes('P2pClient.isStub = true');
-    const what = demo ? "the Wear Engine stub and its demo data (replaced by Huawei's file on the watch)" : "Huawei's wearengine.js";
-    console.log(`      of which ${what}: ${fmt(code)} without comments (${stub.map((f) => relative(JS_ROOT, f)).join(', ')})`);
+  if (b.page) {
+    for (const f of seen) if (CORE_ONLY.includes(f)) errors.push(`${b.name} imports ${relative(JS_ROOT, f)}: core modules belong to the app.js bundle (common/app/core.js), the page reaches them through getCore()`);
+  }
+  if (estimate > PAGE_LIMIT) errors.push(`${b.name}: ~${fmt(estimate)} compiled (estimated) > 48 KB: lite refuses it on the watch`);
+  else if (estimate > PLAN_B) warnings.push(`${b.name}: ~${fmt(estimate)} compiled (estimated) > 44 KB`);
+  console.log(`  ${estimate > PAGE_LIMIT ? 'BIG' : 'ok '} ${b.name.padEnd(20)} ~${fmt(estimate).padStart(8)} compiled · ${fmt(code)} without comments · ${fmt(rawOf(seen))} raw (${seen.size} files)${note}`);
+}
+
+// The real compiled bundles, when DevEco has built them (or LITE_BUNDLE_DIR points at them): the
+// authoritative sizes (README § Bundle sizes).
+const BUILT = process.env.LITE_BUNDLE_DIR || join(APP, 'entry/build/default/intermediates/loader_out_lite/default/js/MainAbility');
+if (existsSync(join(BUILT, 'app.js'))) {
+  const srcTime = Math.max(...walk(JS_ROOT).map((f) => statSync(f).mtimeMs));
+  const stale = statSync(join(BUILT, 'app.js')).mtimeMs < srcTime;
+  console.log(`Compiled bundles in ${relative(APP, BUILT) || BUILT}${stale ? ' (older than the sources: rebuild in DevEco for current sizes)' : ''}:`);
+  for (const b of bundles) {
+    const f = join(BUILT, b.page ? b.name + '.js' : 'app.js');
+    if (!existsSync(f)) continue;
+    const size = statSync(f).size;
+    if (size > PAGE_LIMIT && !stale) errors.push(`${b.name}: compiled bundle is ${fmt(size)} > 48 KB (${relative(APP, f)})`);
+    console.log(`  ${size > PAGE_LIMIT ? 'BIG' : 'ok '} ${b.name.padEnd(20)} ${fmt(size).padStart(9)} compiled`);
   }
 }
 

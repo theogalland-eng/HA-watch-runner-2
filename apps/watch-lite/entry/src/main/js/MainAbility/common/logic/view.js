@@ -69,7 +69,7 @@ function detailView(se, t, nowMs) {
         btnColor: btn ? color(btn.color) : '',
         btnBorder: btn ? color(btn.border) : '',
         btnOpacity: phase === 'pending' ? 0.4 : 1,
-        readOnly: card.d === 'sensor'
+        isReadOnly: card.d === 'sensor'
     };
 }
 
@@ -77,12 +77,12 @@ function detailView(se, t, nowMs) {
 function messageView(se, t, name) {
     var st = se.st;
     if (name === 'empty') {
-        return { icon: iconFile('ic_star_sub'), t1: t('empty_title'), t2: '', b1: t('empty_b1'), b2: t('empty_b2'), btn: t(st.syncing ? 'syncing' : 'resync') };
+        return { icon: iconFile('ic_star_sub'), t1: t('empty_title'), t2: '', hasT2: false, b1: t('empty_b1'), b2: t('empty_b2'), btn: t(st.syncing ? 'syncing' : 'resync') };
     }
     if (st.statusErr === 'ha') {
-        return { icon: iconFile('ic_ha_off_err'), t1: t('ha_name'), t2: t('err_ha_t2'), b1: t('err_ha_b1'), b2: t('err_ha_b2'), btn: t(st.syncing ? 'connecting' : 'retry') };
+        return { icon: iconFile('ic_ha_off_err'), t1: t('ha_name'), t2: t('err_ha_t2'), hasT2: true, b1: t('err_ha_b1'), b2: t('err_ha_b2'), btn: t(st.syncing ? 'connecting' : 'retry') };
     }
-    return { icon: iconFile('ic_phone_off_err'), t1: t('err_phone_t1'), t2: t('err_phone_t2'), b1: t('err_phone_b1'), b2: t('err_phone_b2'), btn: t(st.syncing ? 'connecting' : 'retry') };
+    return { icon: iconFile('ic_phone_off_err'), t1: t('err_phone_t1'), t2: t('err_phone_t2'), hasT2: true, b1: t('err_phone_b1'), b2: t('err_phone_b2'), btn: t(st.syncing ? 'connecting' : 'retry') };
 }
 
 /** Screen 6. Before any answer in this session, phone and HA are "Inconnu" (not drawn in the design). */

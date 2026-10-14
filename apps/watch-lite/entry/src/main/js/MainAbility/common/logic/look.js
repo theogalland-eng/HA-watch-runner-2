@@ -2,66 +2,11 @@
 // A card is the v2 compact shape { k: slot, d: domain, n: name, s: state }. The watch stays
 // presentation-only: it never decides HA services, only icons, colours, texts and the tap gesture.
 // Pure ES5, no @system import (unit-tested with Node). Texts are i18n keys of `strings.*`.
+// The action rules (tap, target, busy) live in rules.js, shared with the app-level core.
+import { transientKey, isDown, isBusy } from './rules.js';
 
 /** Domains the watch can draw. light/switch/lock come from the companion; cover/scene/sensor are ready. */
 export var DOMAINS = ['light', 'switch', 'lock', 'cover', 'scene', 'sensor'];
-
-var UNAVAILABLE = { unavailable: true, unknown: true };
-
-/**
- * HA states where the device is moving between two states (HA usually reports `locking` right after
- * a lock call). Shown as "en cours" with the transition text; never as the end state.
- */
-var TRANSIENT = {
-    lock: { locking: 'pend_lock', unlocking: 'pend_unlock', opening: 'pend_unlock' },
-    cover: { opening: 'pend_open', closing: 'pend_close' }
-};
-
-function transientKey(d, s) {
-    var t = TRANSIENT[d];
-    return t && t[s] ? t[s] : null;
-}
-
-/** HA reports no usable state. A scene is `unknown` until first activated: that one is fine. */
-function isDown(d, s) {
-    return d === 'scene' ? s === 'unavailable' : !!UNAVAILABLE[s];
-}
-
-/** Whether the entity cannot be acted on right now (unavailable, or moving between states). */
-export function isBusy(card) {
-    return isDown(card.d, card.s) || transientKey(card.d, card.s) !== null;
-}
-
-/** State the action is heading to (drives the "en cours" text). */
-export function targetOf(d, s) {
-    if (d === 'light' || d === 'switch') {
-        return s === 'on' ? 'off' : 'on';
-    }
-    if (d === 'lock') {
-        return s === 'locked' ? 'unlocked' : 'locked';
-    }
-    if (d === 'cover') {
-        return s === 'open' ? 'closed' : 'open';
-    }
-    return s;
-}
-
-/**
- * What a tap on a row does: 'detail' (read-only sensor), 'confirm' (unlocking always goes through
- * the confirmation screen), 'none' (unavailable entity) or 'run' (one tap = one action).
- */
-export function tapAction(card) {
-    if (card.d === 'sensor') {
-        return 'detail';
-    }
-    if (isBusy(card)) {
-        return 'none';
-    }
-    if (card.d === 'lock' && card.s === 'locked') {
-        return 'confirm';
-    }
-    return 'run';
-}
 
 /** Base look of a card at rest: icon file name, icon colour role, state text (key or raw), state colour role. */
 export function stateLook(card) {

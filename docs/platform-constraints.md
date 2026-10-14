@@ -85,11 +85,12 @@ If a lite-JS client is built for GT, these constraints apply:
 
 - HAP ≤ 10 MB; ~1 MB RAM; no background; router has no back-stack; state not restored after
   restart.
-- **48 KB: page size or JS memory, not enforced by the DevEco Previewer.** To be confirmed on the
-  Runner 2: see [Page size and JS memory](#page-size-and-js-memory) below.
+- **About 48 KB of compiled JS per bundle** (app.js, and each page): above it the Previewer logs
+  "File exceeds size limit but allowed on simulator", so the watch refuses it. See
+  [Page size and JS memory](#page-size-and-js-memory) and [App-level core](#app-level-core) below.
 - Images are decoded to raw RGBA → keep icons tiny (a few PNGs, no large graphics).
-- ES5.1 only, **no** `globalThis`. The lite app keeps a single page, so it shares no state between
-  pages (`$def` reportedly unsupported, see above).
+- ES5.1 only, **no** `globalThis`. `this.$app` is undefined and `getApp()` returns undefined in
+  pages: see [App-level core](#app-level-core) for how app.js and the page share an object.
 - No watch-side internet → all network goes through the phone companion over Wear Engine P2P.
 - **No RegExp** in ACE Lite's JerryScript. One regex literal in a module of the page is enough for
   a black screen in the lite Previewer: `previewer.log` shows "Eval JS file failed — TypeError: wrong
@@ -112,34 +113,61 @@ If a lite-JS client is built for GT, these constraints apply:
 
 ## Page size and JS memory
 
-**Where the 48 KB comes from.**
-- This repo first read it as a per-page source size limit.
-- One unofficial source describes it as the **JS memory limit at runtime**: 49 144 bytes, shown by
-  the lite simulator. It is a 2022 HarmonyOS lite-wearable tutorial, found by a web search and not
-  opened from here: [developer.aliyun.com/article/1059616](https://developer.aliyun.com/article/1059616).
-  - Debug mode lifts the limit and shows only the current use, because the debugger takes memory.
-  - The same search reports that lite wearables do not support the `$def` global data: pages share
-    data through storage or files.
+**The limit is real: about 48 KB of compiled JS per bundle.** The lite toolchain (hvigor
+`LegacyCompileLiteJS`) turns `app.js` and each page (HML + CSS + JS + imported modules) into one JS
+bundle each, under `entry/build/default/intermediates/loader_out_lite/default/js/MainAbility/`. The
+Previewer engine loads a bigger bundle but logs a warning in `previewer.log`
+(`%LOCALAPPDATA%\Huawei\DevEcoStudio6.1\log\`), which is the authoritative signal:
 
-**Measured by the maintainer** (DevEco 6.1, lite Previewer, `master` after PR #7):
+| Compiled page bundle (DevEco 6.1) | `File exceeds size limit but allowed on simulator` |
+|-----------------------------------|----------------------------------------------------|
+| 48 177 bytes (`master` after PR #7, single page) | no |
+| 59 966 bytes (PR #8 before the split, single page with the whole core) | **yes** |
+| 84 803 bytes (test page with ~33 KB of dummy code) | **yes** |
 
-| Measure | Value |
-|---------|-------|
-| Compiled page `loader_out_lite/.../pages/index/index.js` | **48 177 bytes**, while `npm run check` reported 39.4 KB without comments or indentation |
-| Same page with about 33 KB of dummy code added | **84 803 bytes** compiled: it loads and renders normally in the Previewer |
-| Previewer JS heap | `memoryUsage.totalBytes` = 524 280 (512 KB) |
-| Previewer `allocBytes` | about 92 KB with **and** without the dummy code: it does not track the page, so it is not usable |
+The limit therefore lies between 48 177 and 59 966 bytes, consistent with 48 KiB (49 152 bytes).
+"allowed on simulator" means the watch refuses it. Earlier readings of this section (a source-size
+limit, then "not enforced") were wrong: the Previewer renders the page, but only because it is lenient.
 
-**Consequences.**
-- The Previewer does not enforce 48 KB, and its memory reading cannot decide either way.
-- `npm run check` (`apps/watch-lite/tools/`) measures the page source **without comments** (comments
-  never reach the watch). It only **warns**: above 40 KB, above 44 KB (plan B threshold) and above
-  48 KB ("to be confirmed on the watch"). It also prints the share of the Wear Engine stub, which
-  Huawei's SDK file replaces on the watch.
-- No lite API gives the free JS memory. The decision (plan B or not) is taken **on the real
-  Runner 2**, with the checklist in
-  [apps/watch-lite/README.md](../apps/watch-lite/README.md#watch-test-decides-plan-b): 10 favorites,
-  scrolling, confirmation, detail, Réglages, then 10 actions in a row.
+**Compiled vs source.** The bundle is 1.22–1.26 × the sources without comments (the HML and CSS
+become JS objects; webpack and Babel helpers add a little). `npm run check` estimates each bundle with
+1.3 × and fails above 48 KB; it also reads the real bundles when DevEco has built them
+([apps/watch-lite/README.md § Bundle sizes](../apps/watch-lite/README.md#bundle-sizes)).
+
+**JS memory.** The Previewer heap is 512 KB (`memoryUsage.totalBytes` = 524 280); its `allocBytes`
+(~92 KB) does not change with the page, so it cannot be used. No lite API gives the free JS memory:
+the watch checklist ([README § Watch test](../apps/watch-lite/README.md#watch-test)) covers it.
+
+## App-level core
+
+Measured with the DevEco 6.1 lite engine (`Simulator.exe`, run headless, see below):
+
+| Probe from a page | Result |
+|-------------------|--------|
+| `this.$app` | `undefined` |
+| `getApp()` | a function, returning `undefined` |
+| `(function () { return this; })()` (global object) | `undefined` (strict modules) |
+| fields declared on app.js's exported object | not on `this` in `onCreate` (only `_vm, onCreate, onDestroy, $watch, $t`) |
+| a property set by app.js `onCreate` on a built-in (`JSON.__x = {...}`) | **seen by the page** |
+
+app.js and the pages run in **one JS context** but separate bundles. The lite app uses that to split
+its ~60 KB: app.js creates the **core** (Wear Engine client, repository + file cache, session, timers;
+`common/app/core.js`) and publishes it on `JSON` (`common/app/link.js`); the single page imports only
+the drawing (view-models, looks, texts) and reaches the core with `getCore()`. A module imported by
+both bundles is copied into both, so the rules the core needs are in their own small file
+(`common/logic/rules.js`) and `npm run check` refuses a page that imports a core module.
+
+Page changes (`router.replace`) were not tested: the app keeps one page, so an action in flight, its
+timers and the P2P receiver never depend on a page.
+
+**Running the lite engine headless** (used for the measurements above; DevEco itself does the same):
+`sdk/default/hms/previewer/liteWearable/bin/Simulator.exe -j <loader_out_lite/.../MainAbility> -url
+pages/index/index -s <name> -device liteWearable -shape circle -or 454 454 -cr 454 454 -hs 524288 -n
+entry -pm FA -lws <port> …` prints the app's `console.*` (`[Console Info] …`) and JS exceptions on
+stdout. Taps are JSON commands (`{"version":"1.0.1","command":"MousePress","type":"action","args":{"x":…,
+"y":…,"duration":0}}`, then `MouseRelease`) written to the named pipe `\\.\pipe\<name>_commandPipe`,
+which the engine opens as a client; it processes them only while a client reads its frames on the
+websocket `ws://127.0.0.1:<port>`.
 
 ## Future outlook
 

@@ -1,30 +1,13 @@
-// The app's only page. Rules live in common/logic/session.js and view-models in view.js (both
-// unit-tested); this file wires them to lite: Wear Engine, the cache file, timers, $t, the
-// router-less back gesture. With the Wear Engine stub (common/services/wearengine.js) the companion
-// is simulated (DevEco Previewer); with Huawei's file it is the real phone.
+// The app's only page: it draws the app-level core (common/app/core.js, created by app.js) and
+// forwards taps to it. Rules live in common/logic/session.js, view-models in view.js (both
+// unit-tested); this file wires them to lite: $t, the redraw, the router-less back gesture. Wear
+// Engine, the cache and the session are in the app.js bundle, the drawing in this one: each stays
+// under lite's ~48 KB of compiled JS (docs/platform-constraints.md § Page size).
 import app from '@system.app';
-import file from '@system.file';
-import { createSession, open, tapStatus, tapRow, longPressRow, tapDetailButton, confirmYes, confirmNo,
-    retry, openSettings, back, destroy } from '../../common/logic/session.js';
 import { buildView } from '../../common/logic/view.js';
-import { createP2pClient } from '../../common/services/p2pClient.js';
-import { createHaRepository } from '../../common/services/haRepository.js';
-import { P2pClient, Message, Builder } from '../../common/services/wearengine.js';
-import { PEER } from '../../common/config/peer.js';
+import { getCore } from '../../common/app/link.js';
 
-var session = null;
-var version = '';
-/** dev.js settings exist only with the stub; with Huawei's SDK: real cache, no trace. */
-var DEV = P2pClient.isStub ? P2pClient.dev : {};
-
-var timers = {
-    set: function (fn, ms) {
-        return setTimeout(fn, ms);
-    },
-    clear: function (id) {
-        clearTimeout(id);
-    }
-};
+var core = null;
 
 function now() {
     return Date.now();
@@ -48,42 +31,40 @@ export default {
         isSettings: false,
         status: { icon: '', text: '', color: '' },
         rows: [],
-        message: { icon: '', t1: '', t2: '', b1: '', b2: '', btn: '' },
-        detail: { icon: '', name: '', state: '', color: '', meta: '', metaColor: '', hasButton: false, btnText: '', btnColor: '', btnBorder: '', btnOpacity: 1, readOnly: false },
+        message: { icon: '', t1: '', t2: '', hasT2: false, b1: '', b2: '', btn: '' },
+        detail: { icon: '', name: '', state: '', color: '', meta: '', metaColor: '', hasButton: false, btnText: '', btnColor: '', btnBorder: '', btnOpacity: 1, isReadOnly: false },
         confirmName: '',
         settings: { phone: '', phoneColor: '', ha: '', haColor: '', btn: '', last: '', fav: '', version: '' }
     },
 
     onInit: function () {
         var self = this;
-        var info = app.getInfo();
-        version = info && info.versionName ? String(info.versionName) : '';
-        var p2p = createP2pClient({ P2pClient: P2pClient, Message: Message, Builder: Builder }, PEER);
-        var repo = createHaRepository(p2p, file, now, { useCache: DEV.cache !== false });
-        // No lite API exposes the JS memory: the plan B decision relies on the watch checklist (README).
-        console.info('[ha] start ' + version + (P2pClient.isStub ? ' (Wear Engine stub)' : ''));
-        session = createSession(repo, timers, now, function () {
+        core = getCore();
+        if (!core) {
+            console.error('[ha] core=MISSING: app.js did not publish the core');
+            return;
+        }
+        core.attach(function () {
             self.paint();
         });
-        open(session);
         this.paint();
     },
 
     onDestroy: function () {
-        if (session) {
-            destroy(session);
-            session = null;
+        if (core) {
+            core.attach(null); // app.js onDestroy destroys the core
+            core = null;
         }
     },
 
     paint: function () {
         var self = this;
-        if (!session) {
+        if (!core) {
             return;
         }
-        var v = buildView(session, function (key) {
+        var v = buildView(core.session, function (key) {
             return self.$t('strings.' + key);
-        }, now(), version);
+        }, now(), core.version);
         var show = {
             isList: v.screen === 'list',
             isMessage: v.screen === 'error' || v.screen === 'empty',
@@ -110,7 +91,7 @@ export default {
         if (v.settings) {
             this.settings = v.settings;
         }
-        if (DEV.trace) {
+        if (core.dev.trace) {
             trace(v);
         }
         for (flag in show) {
@@ -126,31 +107,47 @@ export default {
     },
 
     onStatus: function () {
-        tapStatus(session);
+        if (core) {
+            core.tapStatus();
+        }
     },
     onRow: function (k) {
-        tapRow(session, k);
+        if (core) {
+            core.tapRow(k);
+        }
     },
     onRowLong: function (k) {
-        longPressRow(session, k);
+        if (core) {
+            core.longPressRow(k);
+        }
     },
     onSettings: function () {
-        openSettings(session);
+        if (core) {
+            core.openSettings();
+        }
     },
     onSync: function () {
-        retry(session);
+        if (core) {
+            core.retry();
+        }
     },
     onDetailButton: function () {
-        tapDetailButton(session);
+        if (core) {
+            core.tapDetailButton();
+        }
     },
     onConfirmYes: function () {
-        confirmYes(session);
+        if (core) {
+            core.confirmYes();
+        }
     },
     onConfirmNo: function () {
-        confirmNo(session);
+        if (core) {
+            core.confirmNo();
+        }
     },
     onSwipe: function (e) {
-        if (e && e.direction === 'right' && back(session)) {
+        if (e && e.direction === 'right' && core && core.back()) {
             app.terminate();
         }
     }

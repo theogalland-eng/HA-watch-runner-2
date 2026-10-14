@@ -39,14 +39,19 @@ The maintainer of this fork runs:
 
 | App | Package / bundle | Status |
 |-----|------------------|--------|
-| Watch (`apps/watch-lite/`) | `io.github.theogallandeng.hawatch` | Done: protocol v2, P2P client, file cache; `supportLists` = companion **debug** fingerprint. Demo stub until Huawei's `wearengine.js` is copied in |
+| Watch (`apps/watch-lite/`) | `io.github.theogallandeng.hawatch` | Done: protocol v2, P2P client, file cache, app-level core in app.js (two bundles under 48 KB); `supportLists` = companion **debug** fingerprint. Demo stub until Huawei's `wearengine.js` is copied in |
 | Companion (`apps/phone-android/`) | `io.github.theogallandeng.hawatch.companion` | Done |
 
 Still to do:
 - **Watch SDK:** Huawei's lite `wearengine.js` is not in git. Copy it over the stub for a watch build
   ([procedure](apps/watch-lite/README.md#wear-engine-sdk-for-the-watch)); `npm run verify` runs with
-  the stub. Then run the watch test, which decides plan B
-  ([checklist](apps/watch-lite/README.md#watch-test-decides-plan-b)).
+  the stub. Then run the watch test
+  ([checklist](apps/watch-lite/README.md#watch-test)).
+- **Watch architecture:** one page (screens are `if` blocks) + the app-level core in `app.js`
+  (`common/app/core.js`, reached through `common/app/link.js`): lite refuses a JS bundle above
+  ~48 KB compiled, and `this.$app` / `getApp()` do not work on lite
+  ([platform-constraints.md § App-level core](docs/platform-constraints.md#app-level-core)). A page
+  must not import a core module (`npm run check` fails).
 - **Release:** `supportLists` in `apps/watch-lite/entry/src/main/config.json` holds the companion's
   *debug* SHA-256. Replace it with the release key's fingerprint
   ([details](apps/watch-lite/README.md#identifiers)).
@@ -62,9 +67,10 @@ Still to do:
 - **Tests:** unit tests of `common/logic/` and `common/services/`, on the real chain against the
   stub companion. The code tables of `protocol.js`, `docs/p2p-protocol.md` and `CardCodes.kt` must
   stay identical (a test parses all three).
-- **Check:** page size without comments (warnings at 40 / 44 / 48 KB; the 48 KB is not enforced by
-  the Previewer and is decided on the watch), the 26 icons < 1 KB, lite-only CSS/HML, no signing
-  material ([details](apps/watch-lite/README.md#watch-test-decides-plan-b)).
+- **Check:** estimated compiled size of each JS bundle (`app.js`, each page) ≤ 48 KB, plus the real
+  bundles when DevEco has built them; no core module in a page; `if`/`show` bound to `is…`/`has…`
+  booleans; the 26 icons < 1 KB; lite-only CSS/HML; no signing material
+  ([details](apps/watch-lite/README.md#bundle-sizes)).
 - **Icons:** `npm run icons` regenerates the 26 icons from the design paths.
 
 ## Repository layout (monorepo)
