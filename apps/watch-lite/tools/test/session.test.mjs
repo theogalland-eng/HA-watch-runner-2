@@ -1,15 +1,22 @@
 // The design's interaction rules (docs/design/watch-lite/README.md § Règles d'interaction), played
-// with fake timers on the real Mock and checked on the view-models with the real fr-FR texts.
-import { test } from 'node:test';
+// with fake timers on the real chain (session → haRepository → p2pClient → Wear Engine stub that
+// simulates the v2 companion) and checked on the view-models with the real fr-FR texts.
+import { test as nodeTest } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { logic, main, strings, MAIN } from './paths.mjs';
+import { logic, main, strings, MAIN, HAS_STUB, NO_STUB } from './paths.mjs';
 import { ICONS } from '../icons/spec.mjs';
 
 const S = await logic('session.js');
 const V = await logic('view.js');
-const M = await main('common/repo/mockRepository.js');
+const W = HAS_STUB ? await main('common/services/wearengine.js') : null;
+const test = HAS_STUB ? nodeTest : (name, fn) => nodeTest(name, { skip: NO_STUB }, fn);
+const { createP2pClient } = await main('common/services/p2pClient.js');
+const { createHaRepository, CACHE_URI } = await main('common/services/haRepository.js');
+const { DEMO } = await main('common/config/demo.js');
+const { PEER } = await main('common/config/peer.js');
+const { serializeCache } = await logic('cache.js');
 const FR = strings('fr-FR');
 const ICON_PATHS = new Set(ICONS.map((i) => '/common/icons/' + i.file));
 const C = { txt: '#E0E0E0', sub: '#8C8C8C', off: '#6B6B6B', on: '#FFC247', lock: '#3DD68C', unlock: '#FF8A3D', act: '#41BDF5', err: '#FF5A52' };
@@ -55,10 +62,39 @@ function t(key) {
   return FR[key];
 }
 
-/** Opens the app on a repository (the Mock by default) and returns helpers. */
+/** @system.file in memory. */
+function fakeFile() {
+  const files = {};
+  return {
+    files,
+    readText({ uri, success, fail }) {
+      if (uri in files) success({ text: files[uri] });
+      else fail('file does not exist', 301);
+    },
+    writeText({ uri, text, success }) {
+      files[uri] = text;
+      success();
+    },
+  };
+}
+
+/** The real repository on the stub companion; with dev.cache, the file holds a 3-min-old cache. */
+function realRepo(dev, clock) {
+  W.configureStub(dev, clock.timers);
+  const file = fakeFile();
+  if (dev.cache) {
+    const cards = DEMO.slice(0, dev.favorites === 10 || dev.favorites === 0 ? dev.favorites : 5);
+    file.files[CACHE_URI] = serializeCache({ cards, fr: 1, lastSyncAt: clock.now() - 3 * MIN });
+  }
+  const p2p = createP2pClient({ P2pClient: W.P2pClient, Message: W.Message, Builder: W.Builder }, PEER);
+  return { repo: createHaRepository(p2p, file, clock.now, { useCache: dev.cache !== false }), file };
+}
+
+/** Opens the app on a repository (the real chain by default) and returns helpers. */
 function launch(dev, makeRepo) {
   const clock = createClock();
-  const repo = makeRepo ? makeRepo(clock) : M.createMockRepository(dev, clock.timers, clock.now);
+  const real = makeRepo ? null : realRepo(dev, clock);
+  const repo = makeRepo ? makeRepo(clock) : real.repo;
   const acts = [];
   const spy = { ...repo, act: (req, cb) => { acts.push(req); repo.act(req, cb); } };
   let draws = 0;
@@ -72,7 +108,7 @@ function launch(dev, makeRepo) {
     return v;
   };
   const row = (k) => view().rows.find((r) => r.k === k);
-  return { se, clock, view, row, acts, draws: () => draws };
+  return { se, clock, view, row, acts, draws: () => draws, file: real && real.file };
 }
 
 const DASH = { favorites: 5, network: 'ok', cache: true };
@@ -137,7 +173,7 @@ test('failure: red row with its cause for 3 s, red indicator, then the cached st
 
 test('no answer within 8 s: "Échec : délai dépassé"; a late answer changes no feedback', () => {
   let late = null;
-  const cards = M.DEMO.slice(0, 5);
+  const cards = DEMO.slice(0, 5);
   const app = launch(null, (clock) => ({
     loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now() - MIN, cards }),
     sync: (cb) => cb(null, { fr: 1, cards }),
@@ -154,6 +190,41 @@ test('no answer within 8 s: "Échec : délai dépassé"; a late answer changes n
   assert.equal(app.row(2).state, 'Échec : délai dépassé', 'the late success shows no check');
   app.clock.advance(3000);
   assert.equal(app.row(2).state, 'Éteint', 'but its state is the truth from Home Assistant');
+});
+
+test('a device that did not react (same state after the companion\'s 5 s) is "Échec : délai dépassé"; a scene is not', () => {
+  const cards = [DEMO[0], DEMO[8]];
+  const app = launch(null, (clock) => ({
+    loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards }),
+    sync: (cb) => cb(null, { fr: 1, cards }),
+    act: (req, cb) => clock.timers.set(() => cb(null, cards.find((c) => c.k === req.k)), 1300),
+    close() {},
+  }));
+  S.tapRow(app.se, 0);
+  app.clock.advance(1300);
+  assert.equal(app.row(0).state, 'Échec : délai dépassé');
+  assert.equal(app.row(0).hasCheck, false);
+  S.tapRow(app.se, 8);
+  app.clock.advance(1300);
+  assert.equal(app.row(8).state, 'Lancée');
+  assert.equal(app.row(8).hasCheck, true);
+});
+
+test('the cache file follows HA: written after each sync and each action, read at the next launch', () => {
+  const app = launch(DASH);
+  app.clock.advance(1500);
+  const synced = JSON.parse(app.file.files[CACHE_URI]);
+  assert.equal(synced.t, app.clock.now(), 'the sync time');
+  assert.deepEqual(synced.c[0], [0, 'light', 'Salon', 'on']);
+  S.tapRow(app.se, 0);
+  app.clock.advance(1300);
+  assert.deepEqual(JSON.parse(app.file.files[CACHE_URI]).c[0], [0, 'light', 'Salon', 'off']);
+
+  const clock = createClock();
+  const repo = createHaRepository({ request() {}, close() {} }, app.file, clock.now);
+  let cache = null;
+  repo.loadCache((c) => { cache = c; });
+  assert.equal(cache.cards[0].s, 'off', 'the next launch starts from the new state');
 });
 
 test('unlocking goes through the confirmation (auto-cancelled after 10 s); locking stays immediate', () => {
@@ -231,9 +302,9 @@ test('taps reach only the visible screen: a click after a long press does not ac
   assert.equal(app.acts.length, 0, 'the detail button only works on the detail');
 });
 
-test('the Mock refuses an unlock that skipped the confirmation, like the companion', () => {
+test('the stub companion refuses an unlock that skipped the confirmation, and an old revision', () => {
   const clock = createClock();
-  const repo = M.createMockRepository(DASH, clock.timers, clock.now);
+  const repo = realRepo(DASH, clock).repo;
   let res = null;
   repo.act({ k: 3, fr: 1, confirm: false }, (err) => { res = err; });
   clock.advance(1300);
@@ -241,7 +312,7 @@ test('the Mock refuses an unlock that skipped the confirmation, like the compani
   repo.act({ k: 3, fr: 9, confirm: true }, (err) => { res = err; });
   clock.advance(1300);
   assert.deepEqual(res, { kind: 'stale' }, 'an old favorites revision is refused');
-  assert.deepEqual(M.DEMO.map((c) => c.n), ['Salon', 'Cuisine', 'Prise bureau', 'Porte d\'entrée', 'Garage', 'Lampe de chevet parents', 'Volet séjour', 'Température salon', 'Bonne nuit', 'Ventilation']);
+  assert.deepEqual(DEMO.map((c) => c.n), ['Salon', 'Cuisine', 'Prise bureau', 'Porte d\'entrée', 'Garage', 'Lampe de chevet parents', 'Volet séjour', 'Température salon', 'Bonne nuit', 'Ventilation']);
 });
 
 test('detail: name, big state, last update, one button in the target colour, greyed while running', () => {
@@ -302,7 +373,7 @@ test('a failed action in the detail keeps the cached state; the cause replaces "
 
 test('no cache: full-screen 5b / 5c; "Réessayer" works in place and leaves only on success', () => {
   let ok = false;
-  const cards = M.DEMO.slice(0, 5);
+  const cards = DEMO.slice(0, 5);
   const app = launch(null, (clock) => ({
     loadCache: (cb) => cb(null),
     sync: (cb) => clock.timers.set(() => (ok ? cb(null, { fr: 1, cards }) : cb({ kind: 'tel' })), 900),
@@ -419,7 +490,7 @@ test('an action in flight survives screen changes (single page)', () => {
 
 test('a resync that changes the favorites closes a confirmation or detail on that slot (never unlock the wrong lock)', () => {
   let fr = 1;
-  const before = M.DEMO.slice(0, 5);
+  const before = DEMO.slice(0, 5);
   const after = [{ k: 3, d: 'light', n: 'Autre', s: 'off' }];
   const app = launch(null, (clock) => ({
     loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards: before }),
@@ -475,7 +546,7 @@ test('an action reply never overwrites a slot after the favorites changed (B1: n
 });
 
 test('a background sync that succeeds while the error screen is open returns to the list', () => {
-  const cards = M.DEMO.slice(0, 5);
+  const cards = DEMO.slice(0, 5);
   let syncs = 0;
   const app = launch(null, (clock) => ({
     loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards }),
@@ -496,7 +567,7 @@ test('a background sync that succeeds while the error screen is open returns to 
 });
 
 test('a sync asked before an action but answered after it keeps the confirmed state', () => {
-  const cards = M.DEMO.slice(0, 5);
+  const cards = DEMO.slice(0, 5);
   const app = launch(null, (clock) => ({
     loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards }),
     sync: (cb) => clock.timers.set(() => cb(null, { fr: 1, cards }), 2000),
@@ -511,7 +582,7 @@ test('a sync asked before an action but answered after it keeps the confirmed st
 });
 
 test('stale favorites: the action is dropped without an error and the list resyncs', () => {
-  const cards = M.DEMO.slice(0, 5);
+  const cards = DEMO.slice(0, 5);
   let syncs = 0;
   const app = launch(null, (clock) => ({
     loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards }),
@@ -538,8 +609,8 @@ test('leaving the page clears every timer and ignores late replies', () => {
 
   let reply = null;
   const late = launch(null, (clock) => ({
-    loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards: M.DEMO.slice(0, 5) }),
-    sync: (cb) => cb(null, { fr: 1, cards: M.DEMO.slice(0, 5) }),
+    loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards: DEMO.slice(0, 5) }),
+    sync: (cb) => cb(null, { fr: 1, cards: DEMO.slice(0, 5) }),
     act: (req, cb) => { reply = cb; },
     close() {},
   }));
@@ -568,7 +639,7 @@ test('fr-FR, en-US and ru-RU have the same keys and [placeholders], none empty',
 });
 
 test('names get plain apostrophes (the lite font draws ’ full width)', () => {
-  for (const c of M.DEMO) assert.doesNotMatch(c.n, /[\u2018\u2019\u201C\u201D]/, c.n);
+  for (const c of DEMO) assert.doesNotMatch(c.n, /[\u2018\u2019\u201C\u201D]/, c.n);
   const app = launch(null, (clock) => ({
     loadCache: (cb) => cb({ fr: 1, syncedAt: clock.now(), cards: [{ k: 0, d: 'lock', n: 'Porte d\u2019entrée', s: 'locked' }] }),
     sync() {},
@@ -578,7 +649,7 @@ test('names get plain apostrophes (the lite font draws ’ full width)', () => {
   assert.equal(app.row(0).name, "Porte d'entrée");
 });
 
-test('dev.js latency slows every Mock reply, so "en cours" can be watched', () => {
+test('dev.js latency slows every stub reply, so "en cours" can be watched', () => {
   const app = launch({ ...DASH, latency: 4000 });
   app.clock.advance(3999);
   assert.equal(app.view().status.text, 'Synchro…');

@@ -1,15 +1,21 @@
 // The app's only page. Rules live in common/logic/session.js and view-models in view.js (both
-// unit-tested); this file wires them to lite: timers, $t, the router-less back gesture.
-// Mock mode for now (PR 3b); the Wear Engine repository replaces it when the SDK is present (PR 3c).
+// unit-tested); this file wires them to lite: Wear Engine, the cache file, timers, $t, the
+// router-less back gesture. With the Wear Engine stub (common/services/wearengine.js) the companion
+// is simulated (DevEco Previewer); with Huawei's file it is the real phone.
 import app from '@system.app';
+import file from '@system.file';
 import { createSession, open, tapStatus, tapRow, longPressRow, tapDetailButton, confirmYes, confirmNo,
     retry, openSettings, back, destroy } from '../../common/logic/session.js';
 import { buildView } from '../../common/logic/view.js';
-import { createMockRepository } from '../../common/repo/mockRepository.js';
-import { DEV } from '../../common/config/dev.js';
+import { createP2pClient } from '../../common/services/p2pClient.js';
+import { createHaRepository } from '../../common/services/haRepository.js';
+import { P2pClient, Message, Builder } from '../../common/services/wearengine.js';
+import { PEER } from '../../common/config/peer.js';
 
 var session = null;
 var version = '';
+/** dev.js settings exist only with the stub; with Huawei's SDK: real cache, no trace. */
+var DEV = P2pClient.isStub ? P2pClient.dev : {};
 
 var timers = {
     set: function (fn, ms) {
@@ -52,7 +58,11 @@ export default {
         var self = this;
         var info = app.getInfo();
         version = info && info.versionName ? String(info.versionName) : '';
-        session = createSession(createMockRepository(DEV, timers, now), timers, now, function () {
+        var p2p = createP2pClient({ P2pClient: P2pClient, Message: Message, Builder: Builder }, PEER);
+        var repo = createHaRepository(p2p, file, now, { useCache: DEV.cache !== false });
+        // No lite API exposes the JS memory: the plan B decision relies on the watch checklist (README).
+        console.info('[ha] start ' + version + (P2pClient.isStub ? ' (Wear Engine stub)' : ''));
+        session = createSession(repo, timers, now, function () {
             self.paint();
         });
         open(session);

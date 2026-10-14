@@ -336,7 +336,7 @@ avant de s'appuyer dessus.
 | Ombres des planches, repères roses, décalage `translateY` | Outils de présentation du prototype. | Ne pas les reproduire. Aucun flou, ombre ni dégradé sur la montre. |
 | Appui long à 550 ms, clic droit | Seuil fixé par le système, pas de clic droit. | Événement `longpress` (seuil système). |
 | Glisser vers la droite = retour | Routeur sans pile de retour. | `on:swipe` direction `right` → `router.replace` vers la page parente explicite ; depuis la liste, `app.terminate()`. |
-| Confirmation, détail, erreurs et réglages en écrans séparés | `router.replace` détruit la page avec ses minuteries et ses callbacks : une action en cours perdrait son résultat, et chaque retour à la liste rechargerait la page (et la synchro). | **Une seule page** (`pages/index`) : chaque écran est un bloc `if` (pas `show`), seuls les éléments de l'écran visible existent en mémoire. Plan B si la mémoire manque : [README de l'app](../../../apps/watch-lite/README.md#js-memory-main-criterion-and-plan-b). |
+| Confirmation, détail, erreurs et réglages en écrans séparés | `router.replace` détruit la page avec ses minuteries et ses callbacks : une action en cours perdrait son résultat, et chaque retour à la liste rechargerait la page (et la synchro). | **Une seule page** (`pages/index`) : chaque écran est un bloc `if` (pas `show`), seuls les éléments de l'écran visible existent en mémoire. Plan B si la mémoire manque : [README de l'app](../../../apps/watch-lite/README.md#watch-test-decides-plan-b). |
 | Apostrophe typographique ’ (« Porte d’entrée », « à l’instant ») | La police lite la dessine en pleine chasse : un trou dans le mot (vu dans le Previewer DevEco 6.1). | Apostrophe droite `'` dans les textes et la démo ; la montre normalise les noms reçus. |
 | Coche avant l'état, texte d'état sur 276 px sans coche | Pas de `if`/`else` fiable dans un `for` lite. | Structure fixe : coche affichée par `show`, texte d'état sur 246 px dans tous les cas. |
 | Colonne placée à x 63 (marge 63 px), écran de 466 px | Le Previewer DevEco simule 454 px : une largeur figée à 466 rend la page déplaçable horizontalement (vu dans DevEco 6.1). | Conteneurs en `100%`, colonne de 340 px centrée par `justify-content` / `align-items` ; `npm run check` refuse toute largeur ou hauteur > 454 px. |
@@ -378,22 +378,29 @@ Situations que la maquette ne montre pas (`common/logic/session.js` et `view.js`
 ### Autres écarts (contrat P2P, contenu)
 
 - **1 Ko maximum par message P2P, dans les deux sens.** C'est documenté par Huawei pour Wear Engine.
-  Une `SYNC_RESPONSE` v1 dépasse cette taille au-delà d'environ 4 favoris. Elle est remplacée par un
-  **protocole v2 compact**, défini dans la PR 2b (compagnon + ADR + `p2p-protocol.md`) avant le
-  branchement de la montre (PR 3c) :
-  - carte `{ k, d, n, s }` : emplacement 0–9, domaine, nom de 20 caractères au plus, état ;
-  - action `CALL_SERVICE { k, act? }`, avec `act: "confirm"` pour déverrouiller ;
+  Une `SYNC_RESPONSE` v1 dépasse cette taille au-delà d'environ 4 favoris. Elle est remplacée par le
+  **protocole v2 compact** ([ADR-0008](../../adr/0008-p2p-protocol-v2-compact.md),
+  [p2p-protocol.md](../../p2p-protocol.md)), parlé par le compagnon et par la montre
+  (`common/logic/protocol.js`) :
+  - carte `{ k, d, n, s }` : emplacement 0–9, domaine et état codés sur une lettre, nom de
+    20 caractères au plus ; un code inconnu s'affiche « Indisponible », sans plantage ;
+  - action `CALL_SERVICE { k, fr, act? }`, avec `act: "confirm"` pour déverrouiller ; l'`ACK`
+    porte la nouvelle carte ;
   - révision des favoris `fr` ; une action avec une `fr` périmée reçoit `ACK { ok: false, code: "stale" }`,
     et la montre resynchronise ;
   - chaque message fait **900 octets au plus**, vérifié par un test côté compagnon.
 - **« Mis à jour il y a … »** dans le détail : la carte ne porte pas d'horodatage Home Assistant.
   On affiche l'âge de la dernière réception par la montre.
 - **Volets, scènes, capteurs** : hors du MVP du compagnon (`light`, `switch`, `lock`). La montre sait
-  déjà les dessiner (icônes et règles dans `look.js`) ; le mode démo (Mock) les montre pour
-  reproduire la variante 10 favoris.
+  déjà les dessiner (icônes et règles dans `look.js`) ; le mode démo les montre pour reproduire la
+  variante 10 favoris. Un capteur sans valeur (`unavailable`, `unknown`) s'affiche « Indisponible » ;
+  une scène reste « Scène » tant qu'elle n'a jamais été lancée (`unknown` dans HA).
 - **Causes d'échec** : pas de pair ou envoi P2P refusé → « tél. déconnecté » ; HA en erreur côté
-  compagnon → « HA injoignable » ; pas de réponse en 8 s → « délai dépassé ».
+  compagnon → « HA injoignable » ; pas de réponse en 8 s, ou appareil resté dans son ancien état
+  après les 5 s d'attente du compagnon → « délai dépassé ».
 - **Langues** : `fr-FR` (libellés exacts de la maquette), plus `en-US` et `ru-RU`.
-- **Mode démo (Mock)** : **uniquement quand Wear Engine est indisponible**, c'est-à-dire dans
-  l'aperçu ou le simulateur DevEco, ou si le SDK n'est pas installé. Sur la vraie montre, un
-  téléphone absent donne le cache et l'indicateur rouge, ou l'écran 5b s'il n'y a pas de cache.
+- **Mode démo** : **uniquement avec le stub `wearengine.js`** (aperçu ou simulateur DevEco), qui
+  simule le compagnon v2. Le fichier Wear Engine de Huawei le remplace pour la montre et retire tout
+  le démo du build ([procédure](../../../apps/watch-lite/README.md#wear-engine-sdk-for-the-watch)).
+  Sur la vraie montre, un téléphone absent donne le cache et l'indicateur rouge, ou l'écran 5b s'il
+  n'y a pas de cache.

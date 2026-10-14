@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ESLint } from 'eslint';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { APP } from './paths.mjs';
+import { APP, HAS_STUB, NO_STUB } from './paths.mjs';
 
 const eslint = new ESLint({ cwd: APP, overrideConfigFile: resolve(APP, 'tools/eslint.config.mjs') });
 const FILE = resolve(APP, 'entry/src/main/js/MainAbility/common/logic/__probe__.js');
@@ -37,4 +38,10 @@ test('ES2015+ syntax and runtime APIs JerryScript lacks are rejected', async () 
     const found = await problems(code);
     assert.ok(found.some((r) => r.includes(rule)), `${code.trim()} → expected ${rule}, got ${JSON.stringify(found)}`);
   }
+});
+
+test('the Wear Engine stub is ES5 too (lint ignores wearengine.js, which becomes Huawei\'s file)', { skip: !HAS_STUB && NO_STUB }, async () => {
+  const stub = readFileSync(resolve(APP, 'entry/src/main/js/MainAbility/common/services/wearengine.js'), 'utf8');
+  const [result] = await eslint.lintText(stub, { filePath: resolve(APP, 'entry/src/main/js/MainAbility/common/services/__stub__.js') });
+  assert.deepEqual(result.messages.map((m) => `${m.line}: ${m.ruleId} ${m.message}`), []);
 });

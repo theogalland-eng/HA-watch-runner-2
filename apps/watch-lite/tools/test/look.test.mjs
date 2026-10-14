@@ -24,6 +24,11 @@ test('states not drawn in the design stay readable (unavailable, jammed)', () =>
   assert.equal(L.stateLook(card('light', 'unavailable')).icon, 'ic_light_off');
   assert.equal(L.stateLook(card('lock', 'unknown')).icon, 'ic_fail_err', 'no grey lock icon exists');
   assert.equal(L.stateLook(card('lock', 'jammed')).textKey, 'st_jammed');
+  assert.equal(L.stateLook(card('sensor', 'unavailable')).textKey, 'st_unavailable', 'a sensor with no value (or an unknown code)');
+  assert.equal(L.stateLook(card('sensor', 'unknown')).textKey, 'st_unavailable');
+  assert.equal(L.stateLook(card('scene', 'unknown')).textKey, 'st_scene', 'a scene is "unknown" until first activated');
+  assert.equal(L.tapAction(card('scene', 'unknown')), 'run');
+  assert.equal(L.tapAction(card('scene', 'unavailable')), 'none');
 });
 
 test('transient states show as "en cours", never as the end state (security of locks)', () => {
