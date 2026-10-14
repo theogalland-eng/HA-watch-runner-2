@@ -7,7 +7,7 @@
 import { DEV } from '../config/dev.js';
 import { DEMO } from '../config/demo.js';
 import { DOMAINS, STATES } from '../logic/protocol.js';
-import { targetOf } from '../logic/look.js';
+import { targetOf } from '../logic/rules.js';
 
 var FR = 1;
 var cfg = {

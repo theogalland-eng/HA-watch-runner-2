@@ -2,7 +2,7 @@
 // d'abord"). Serialised compactly; stored with @system.file by the page/service layer (PR 3c),
 // because @system.storage values must stay under 128 bytes. Pure ES5 (unit-tested with Node).
 import { normalizeCards } from './store.js';
-import { utf8Bytes } from './format.js';
+import { utf8Bytes } from './utf8.js';
 
 export var CACHE_FORMAT = 2;
 /** @system.file readText reads 4096 bytes by default: stay below. */

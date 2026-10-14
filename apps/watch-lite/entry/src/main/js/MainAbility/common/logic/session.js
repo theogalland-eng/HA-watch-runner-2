@@ -1,8 +1,7 @@
 // Interaction rules of the design (docs/design/watch-lite/README.md § Règles d'interaction): which
 // screen is shown, sync on open, one tap = one action, unlock confirmation, row feedback and its
-// 1.5 s / 3 s / 8 s / 10 s timers. Page-independent: the page passes a repository, the timer
-// functions and a redraw callback, so it is unit-tested with fake timers and could move to an
-// application-level module (README § Plan B). Pure ES5, no @system import.
+// 1.5 s / 3 s / 8 s / 10 s timers. Page-independent: it lives in the app-level core (common/app/core.js,
+// app.js bundle) and the page only draws it; unit-tested with fake timers. Pure ES5, no @system import.
 //
 // Repository contract (callbacks, no Promise on lite):
 //   loadCache(cb(cache|null))          cache = { fr, syncedAt, cards }
@@ -12,16 +11,22 @@
 //   close()                            drops pending replies (page destroyed)
 import { createState, findCard, startSync, applySync, failSync, applyEntity, startAction,
     actionSucceeded, actionFailed, clearPhase } from './store.js';
-import { tapAction, targetOf, detailButton } from './look.js';
+import { tapAction, targetOf, canAct } from './rules.js';
 
 /** Design timings. TIMEOUT also bounds a sync (P2P requests time out at 8 s). */
 export var TIMEOUT_MS = 8000;
 export var OK_MS = 1500;
 export var FAIL_MS = 3000;
 export var CONFIRM_MS = 10000;
-/** "Déverrouiller" ignores taps this soon after the confirmation opened: a double tap on the row or
- *  the detail button, which overlaps it on screen, never skips the confirmation. */
-export var CONFIRM_GUARD_MS = 500;
+/**
+ * Every tap is ignored this soon after the screen changed. Lite delivers the release of a tap to the
+ * screen that tap built (seen in the Previewer: "Déverrouiller" then the "Cuisine" row toggled), and a
+ * double tap on the row or the detail button, which overlaps "Déverrouiller", must never skip the
+ * confirmation.
+ */
+export var TAP_GUARD_MS = 500;
+/** Former name of TAP_GUARD_MS (the guard used to cover "Déverrouiller" only). */
+export var CONFIRM_GUARD_MS = TAP_GUARD_MS;
 
 function noop() {}
 
@@ -31,7 +36,7 @@ function noop() {}
  */
 export function createSession(repo, timers, now, onChange) {
     return {
-        st: createState(), nav: 'dash', det: -1, conf: -1, ret: 'dash', confTimer: 0, confAt: 0,
+        st: createState(), nav: 'dash', det: -1, conf: -1, ret: 'dash', confTimer: 0, navAt: null,
         live: false, // a sync succeeded since the app opened (settings: "Connecté", "Joignable")
         repo: repo, timers: timers, now: now, onChange: onChange || noop,
         timerIds: {}, syncTok: 0, dead: false
@@ -55,6 +60,19 @@ function cancel(se, id) {
         se.timers.clear(id);
         delete se.timerIds[id];
     }
+}
+
+/** Changes the screen and starts the tap guard. */
+function go(se, nav) {
+    if (se.nav !== nav) {
+        se.nav = nav;
+        se.navAt = se.now();
+    }
+}
+
+/** False within TAP_GUARD_MS of a screen change: the tap belongs to the previous screen. */
+function settled(se) {
+    return se.navAt === null || se.now() - se.navAt >= TAP_GUARD_MS;
 }
 
 function isPending(se, k) {
@@ -122,22 +140,22 @@ function endSync(se, tok, err, res) {
         // A slot may now hold another entity: never leave a detail or an unlock confirmation open on it.
         if ((se.nav === 'detail' || se.nav === 'confirm') && (!sameFavorites || !findCard(se.st, se.nav === 'detail' ? se.det : se.conf))) {
             cancel(se, se.confTimer);
-            se.nav = 'dash';
+            go(se, 'dash');
         }
         // "Réessayer" leaves the error screen on success, and so does any other sync that works.
         if (se.nav === 'error') {
-            se.nav = 'dash';
+            go(se, 'dash');
         }
     }
 }
 
 /** Tap on the sync indicator: resync; when red, open the matching error screen. Ignored while syncing. */
 export function tapStatus(se) {
-    if (se.nav !== 'dash' || se.st.syncing) {
+    if (se.nav !== 'dash' || se.st.syncing || !settled(se)) {
         return;
     }
     if (se.st.statusErr) {
-        se.nav = 'error';
+        go(se, 'error');
         se.onChange();
         return;
     }
@@ -146,7 +164,9 @@ export function tapStatus(se) {
 
 /** "Réessayer" / "Resynchroniser": syncs in place; a successful sync leaves the error screen. */
 export function retry(se) {
-    sync(se);
+    if (settled(se)) {
+        sync(se);
+    }
 }
 
 /**
@@ -155,12 +175,12 @@ export function retry(se) {
  */
 export function tapRow(se, k) {
     var card = findCard(se.st, k);
-    if (se.nav !== 'dash' || !card || isPending(se, k)) {
+    if (se.nav !== 'dash' || !card || isPending(se, k) || !settled(se)) {
         return;
     }
     var what = tapAction(card);
     if (what === 'detail') {
-        longPressRow(se, k);
+        showDetail(se, k);
     } else if (what === 'confirm') {
         askConfirm(se, k, 'dash');
     } else if (what === 'run') {
@@ -170,8 +190,14 @@ export function tapRow(se, k) {
 
 /** Long press (or tap on a sensor): the detail screen. */
 export function longPressRow(se, k) {
-    if (se.nav === 'dash' && findCard(se.st, k)) {
-        se.nav = 'detail';
+    if (se.nav === 'dash' && settled(se)) {
+        showDetail(se, k);
+    }
+}
+
+function showDetail(se, k) {
+    if (findCard(se.st, k)) {
+        go(se, 'detail');
         se.det = k;
         se.onChange();
     }
@@ -180,7 +206,7 @@ export function longPressRow(se, k) {
 /** The detail's single button; greyed and ignored while the action runs. */
 export function tapDetailButton(se) {
     var card = findCard(se.st, se.det);
-    if (se.nav !== 'detail' || !card || isPending(se, card.k) || !detailButton(card)) {
+    if (se.nav !== 'detail' || !card || isPending(se, card.k) || !canAct(card) || !settled(se)) {
         return;
     }
     if (tapAction(card) === 'confirm') {
@@ -192,10 +218,9 @@ export function tapDetailButton(se) {
 
 function askConfirm(se, k, ret) {
     cancel(se, se.confTimer);
-    se.nav = 'confirm';
+    go(se, 'confirm');
     se.conf = k;
     se.ret = ret;
-    se.confAt = se.now();
     se.confTimer = later(se, CONFIRM_MS, function () {
         if (se.nav === 'confirm') {
             closeConfirm(se);
@@ -207,11 +232,11 @@ function askConfirm(se, k, ret) {
 function closeConfirm(se) {
     cancel(se, se.confTimer);
     se.confTimer = 0;
-    se.nav = se.ret;
+    go(se, se.ret);
 }
 
 export function confirmYes(se) {
-    if (se.nav !== 'confirm' || se.now() - se.confAt < CONFIRM_GUARD_MS) {
+    if (se.nav !== 'confirm' || !settled(se)) {
         return;
     }
     var card = findCard(se.st, se.conf);
@@ -223,15 +248,15 @@ export function confirmYes(se) {
 }
 
 export function confirmNo(se) {
-    if (se.nav === 'confirm') {
+    if (se.nav === 'confirm' && settled(se)) {
         closeConfirm(se);
         se.onChange();
     }
 }
 
 export function openSettings(se) {
-    if (se.nav === 'dash') {
-        se.nav = 'settings';
+    if (se.nav === 'dash' && settled(se)) {
+        go(se, 'settings');
         se.onChange();
     }
 }
@@ -243,7 +268,7 @@ export function back(se) {
     } else if (se.nav === 'dash') {
         return true;
     } else {
-        se.nav = 'dash';
+        go(se, 'dash');
     }
     se.onChange();
     return false;
@@ -313,7 +338,7 @@ function fail(se, k, tok, kind) {
     }
 }
 
-/** Page destroyed: no timer survives, late replies are ignored (lite has no background). */
+/** App closed: no timer survives, late replies are ignored (lite has no background). */
 export function destroy(se) {
     se.dead = true;
     for (var id in se.timerIds) {

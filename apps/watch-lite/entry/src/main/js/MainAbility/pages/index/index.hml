@@ -37,7 +37,7 @@
     <div if="{{isMessage}}" class="full center">
         <image class="ic48" src="{{message.icon}}"></image>
         <text class="t30 c-txt w320 mt12">{{message.t1}}</text>
-        <text if="{{message.t2}}" class="t30 c-txt w320">{{message.t2}}</text>
+        <text if="{{message.hasT2}}" class="t30 c-txt w320">{{message.t2}}</text>
         <text class="t24 c-sub w320 mt8">{{message.b1}}</text>
         <text class="t24 c-sub w320">{{message.b2}}</text>
         <div class="btn btn-act mt24" on:click="onSync">
@@ -56,7 +56,7 @@
                 <text class="t30 btn-text" style="color: {{detail.btnColor}};">{{detail.btnText}}</text>
             </div>
         </div>
-        <text if="{{detail.readOnly}}" class="t24 c-off w340 read-only">{{ $t('strings.read_only') }}</text>
+        <text if="{{detail.isReadOnly}}" class="t24 c-off w340 read-only">{{ $t('strings.read_only') }}</text>
     </div>
 
     <!-- 3 · Unlock confirmation (cancelled after 10 s). -->

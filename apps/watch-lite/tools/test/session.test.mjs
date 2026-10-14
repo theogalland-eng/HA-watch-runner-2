@@ -8,7 +8,24 @@ import { join } from 'node:path';
 import { logic, main, strings, MAIN, HAS_STUB, NO_STUB } from './paths.mjs';
 import { ICONS } from '../icons/spec.mjs';
 
-const S = await logic('session.js');
+const RAW = await logic('session.js');
+/**
+ * The session as a person taps it: a tap right after a screen change waits out the tap guard first
+ * (TAP_GUARD_MS), so the scenarios below test the rules, not the guard. RAW is used to test the guard.
+ */
+const clocks = new WeakMap();
+const TAPS = ['tapStatus', 'tapRow', 'longPressRow', 'tapDetailButton', 'confirmYes', 'confirmNo', 'retry', 'openSettings'];
+const S = { ...RAW };
+for (const name of TAPS) {
+  S[name] = (se, ...args) => {
+    const clock = clocks.get(se);
+    if (clock && se.navAt !== null) {
+      const wait = RAW.TAP_GUARD_MS - (clock.now() - se.navAt);
+      if (wait > 0) clock.advance(wait);
+    }
+    return RAW[name](se, ...args);
+  };
+}
 const V = await logic('view.js');
 const W = HAS_STUB ? await main('common/services/wearengine.js') : null;
 const test = HAS_STUB ? nodeTest : (name, fn) => nodeTest(name, { skip: NO_STUB }, fn);
@@ -99,6 +116,7 @@ function launch(dev, makeRepo) {
   const spy = { ...repo, act: (req, cb) => { acts.push(req); repo.act(req, cb); } };
   let draws = 0;
   const se = S.createSession(spy, clock.timers, clock.now, () => { draws += 1; });
+  clocks.set(se, clock);
   S.open(se);
   const view = () => {
     const v = V.buildView(se, t, clock.now(), '1.0.0');
@@ -240,13 +258,13 @@ test('unlocking goes through the confirmation (auto-cancelled after 10 s); locki
   assert.equal(app.acts.length, 0, 'nothing is sent without "Déverrouiller"');
 
   S.tapRow(app.se, 3);
-  S.confirmYes(app.se);
-  app.clock.advance(S.CONFIRM_GUARD_MS - 1);
-  S.confirmYes(app.se);
+  RAW.confirmYes(app.se);
+  app.clock.advance(RAW.TAP_GUARD_MS - 1);
+  RAW.confirmYes(app.se);
   assert.equal(app.view().screen, 'confirm', 'a double tap cannot skip the confirmation');
   assert.equal(app.acts.length, 0);
   app.clock.advance(1);
-  S.confirmYes(app.se);
+  RAW.confirmYes(app.se);
   assert.equal(app.view().screen, 'list', 'back to where it came from');
   assert.deepEqual(app.acts[0], { k: 3, fr: 1, confirm: true });
   assert.equal(app.row(3).state, 'Déverrouillage…');
@@ -258,6 +276,45 @@ test('unlocking goes through the confirmation (auto-cancelled after 10 s); locki
   assert.equal(app.view().screen, 'list', 'locking needs no confirmation');
   assert.deepEqual(app.acts[1], { k: 4, fr: 1, confirm: false });
   assert.equal(app.row(4).state, 'Verrouillage…');
+});
+
+test('tap guard: the release of "Déverrouiller" never toggles the row under it (Previewer click-through)', () => {
+  const app = launch(DASH);
+  app.clock.advance(1500);
+  S.tapRow(app.se, 3);
+  app.clock.advance(RAW.TAP_GUARD_MS);
+  RAW.confirmYes(app.se);
+  assert.equal(app.view().screen, 'list');
+  RAW.tapRow(app.se, 1); // same instant: lite delivers it to the list the tap just rebuilt
+  RAW.longPressRow(app.se, 1);
+  RAW.openSettings(app.se);
+  RAW.tapStatus(app.se);
+  assert.deepEqual(app.acts, [{ k: 3, fr: 1, confirm: true }], 'only the unlock was sent');
+  assert.equal(app.view().screen, 'list');
+  assert.equal(app.row(1).state, 'Éteinte', 'Cuisine untouched');
+  app.clock.advance(1300);
+  assert.equal(app.row(3).state, 'Déverrouillée');
+  assert.equal(app.row(3).hasCheck, true);
+  app.clock.advance(RAW.TAP_GUARD_MS);
+  RAW.tapRow(app.se, 1);
+  assert.equal(app.acts.length, 2, 'a tap after the guard works again');
+});
+
+test('tap guard: "Annuler" and the detail button ignore the tap that opened their screen', () => {
+  const app = launch(DASH);
+  app.clock.advance(1500);
+  S.tapRow(app.se, 3);
+  RAW.confirmNo(app.se);
+  assert.equal(app.view().screen, 'confirm', 'Annuler is guarded too');
+  app.clock.advance(RAW.TAP_GUARD_MS);
+  RAW.confirmNo(app.se);
+  assert.equal(app.view().screen, 'list');
+  S.longPressRow(app.se, 0);
+  RAW.tapDetailButton(app.se);
+  assert.equal(app.acts.length, 0, 'the long press does not also press the detail button');
+  app.clock.advance(RAW.TAP_GUARD_MS);
+  RAW.tapDetailButton(app.se);
+  assert.equal(app.acts.length, 1);
 });
 
 test('the 10 s auto-cancel never fires once the confirmation is closed (Annuler, Déverrouiller, swipe)', () => {
@@ -323,7 +380,7 @@ test('detail: name, big state, last update, one button in the target colour, gre
   assert.equal(app.view().screen, 'detail');
   assert.deepEqual(d, {
     icon: '/common/icons/ic_light_on.png', name: 'Salon', state: 'Allumée', color: C.on, meta: 'Mis à jour à l\'instant', metaColor: C.sub,
-    hasButton: true, btnText: 'Éteindre', btnColor: C.txt, btnBorder: C.off, btnOpacity: 1, readOnly: false,
+    hasButton: true, btnText: 'Éteindre', btnColor: C.txt, btnBorder: C.off, btnOpacity: 1, isReadOnly: false,
   });
   S.tapDetailButton(app.se);
   d = app.view().detail;
@@ -342,7 +399,7 @@ test('detail: name, big state, last update, one button in the target colour, gre
   d = app.view().detail;
   assert.equal(d.state, '21,5 °C');
   assert.equal(d.hasButton, false);
-  assert.equal(d.readOnly, true, 'sensor: "Lecture seule"');
+  assert.equal(d.isReadOnly, true, 'sensor: "Lecture seule"');
 
   S.back(app.se);
   S.longPressRow(app.se, 4);
@@ -383,7 +440,7 @@ test('no cache: full-screen 5b / 5c; "Réessayer" works in place and leaves only
   assert.equal(app.view().screen, 'list', 'first sync: empty list with "Synchro…"');
   app.clock.advance(900);
   assert.deepEqual(app.view().message, {
-    icon: '/common/icons/ic_phone_off_err.png', t1: 'Téléphone non', t2: 'connecté',
+    icon: '/common/icons/ic_phone_off_err.png', t1: 'Téléphone non', t2: 'connecté', hasT2: true,
     b1: 'Activez le Bluetooth et ouvrez', b2: 'l\'app compagnon.', btn: 'Réessayer',
   });
   assert.equal(app.view().screen, 'error');
@@ -425,7 +482,7 @@ test('no favorite: 5d with "Resynchroniser" ("Synchro…" while it runs)', () =>
   app.clock.advance(1500);
   assert.equal(app.view().screen, 'empty');
   assert.deepEqual(app.view().message, {
-    icon: '/common/icons/ic_star_sub.png', t1: 'Aucun favori', t2: '', b1: 'Choisissez vos favoris dans', b2: 'l\'app du téléphone', btn: 'Resynchroniser',
+    icon: '/common/icons/ic_star_sub.png', t1: 'Aucun favori', t2: '', hasT2: false, b1: 'Choisissez vos favoris dans', b2: 'l\'app du téléphone', btn: 'Resynchroniser',
   });
   S.retry(app.se);
   assert.equal(app.view().message.btn, 'Synchro…');

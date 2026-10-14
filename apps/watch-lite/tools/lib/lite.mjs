@@ -60,6 +60,13 @@ export function hmlProblems(text) {
     for (const ev of m[2].matchAll(/(?:on:|@|\bon)([a-z]+)(?:\.\w+)?=/g)) {
       if (!HML_EVENTS.has(ev[1])) problems.push(`event "${ev[1]}" on <${m[1]}> not supported on lite`);
     }
+    // Lite wants a boolean in if/show: a string there logs "JSI:ValueToBoolean params invalid!" on
+    // every render (seen in the Previewer, with the list then frozen). Booleans are named is…/has….
+    for (const b of m[2].matchAll(/(?:^|\s)(if|show)="([^"]*)"/g)) {
+      const name = /^\{\{\s*([\w$.]+)\s*\}\}$/.exec(b[2]);
+      const last = name ? name[1].split('.').pop() : '';
+      if (!/^(is|has)[A-Z]/.test(last)) problems.push(`<${m[1]} ${b[1]}="${b[2]}">: bind a boolean named is…/has… (lite: ValueToBoolean)`);
+    }
   }
   return problems;
 }

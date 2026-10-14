@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { logic } from './paths.mjs';
 import { ICONS } from '../icons/spec.mjs';
 
-const L = await logic('look.js');
+const L = { ...(await logic('look.js')), ...(await logic('rules.js')) };
 const card = (d, s) => ({ k: 0, d, n: 'X', s });
 const ICON_FILES = new Set(ICONS.map((i) => i.file.replace(/\.png$/, '')));
 
@@ -106,6 +106,14 @@ test('every icon the logic can return exists among the 26 generated PNGs', () =>
         assert.ok(ICON_FILES.has(v.icon), `${d}/${s}: ${v.icon}`);
         if (v.check) assert.ok(ICON_FILES.has(v.check), `${d}/${s}: ${v.check}`);
       }
+    }
+  }
+});
+
+test('rules.canAct matches the detail button: an action exactly when look.js draws a button', () => {
+  for (const d of ['light', 'switch', 'lock', 'cover', 'scene', 'sensor', 'climate']) {
+    for (const s of ['on', 'off', 'locked', 'unlocked', 'locking', 'jammed', 'open', 'closing', 'unknown', 'unavailable', '21,5 °C']) {
+      assert.equal(L.canAct(card(d, s)), L.detailButton(card(d, s)) !== null, `${d}/${s}`);
     }
   }
 });

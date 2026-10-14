@@ -33,3 +33,10 @@ test('lite CSS: no fixed width or height beyond the 454 px Previewer screen', ()
   assert.ok(p.every((x) => x.includes('454')));
   assert.deepEqual(cssProblems('.a { width: 454px; height: 100%; margin-left: 500px; }').filter((x) => x.includes('454')), []);
 });
+
+test('lite HML: if/show only take booleans named is…/has… (no ValueToBoolean)', () => {
+  assert.deepEqual(hmlProblems('<div if="{{isList}}"><image show="{{$item.hasCheck}}"></image><text if="{{detail.isReadOnly}}"></text><text else></text></div>'), []);
+  const p = hmlProblems('<text if="{{message.t2}}"></text><div show="{{rows.length}}"></div><div if="{{isA && isB}}"></div>');
+  assert.equal(p.length, 3);
+  assert.ok(p.every((x) => x.includes('ValueToBoolean')));
+});
