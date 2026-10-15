@@ -27,7 +27,9 @@ android {
     buildToolsVersion = "35.0.0"
 
     defaultConfig {
-        applicationId = "io.github.theogallandeng.hawatch.companion"
+        // The Android package registered with Huawei (AppGallery Connect + Wear Engine): it must match
+        // exactly. The Kotlin namespace above stays io.github.theogallandeng.hawatch.companion.
+        applicationId = "io.github.theogallandeng.hawatchcompanion"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -35,6 +37,8 @@ android {
 
         buildConfigField("String", "WATCH_PEER_PKG", "\"${prop("watchPeerPkg")}\"")
         buildConfigField("String", "WATCH_PEER_FINGERPRINT", "\"${prop("watchPeerFingerprint")}\"")
+        // AppGallery Connect app ID: Huawei Health identifies the app with it (Wear Engine error 12 without it).
+        manifestPlaceholders["hmsAppId"] = prop("hmsAppId")
     }
 
     signingConfigs {

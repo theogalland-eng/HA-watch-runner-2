@@ -13,6 +13,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { ICONS, MAX_ICON_BYTES } from './icons/spec.mjs';
 import { pngSize } from './lib/png.mjs';
 import { cssProblems, hmlProblems } from './lib/lite.mjs';
@@ -45,11 +46,13 @@ function walk(dir, out = []) {
 // Lite compiles app.js and each page into separate JS bundles and refuses one above ~48 KB on the
 // watch (the Previewer only logs "File exceeds size limit but allowed on simulator"). A module imported
 // by two bundles is copied into both. Estimate per bundle = its sources without comments × RATIO
-// (measured 1.22–1.26 with DevEco 6.1; 1.3 keeps a margin). The bundle holding the Wear Engine stub is
-// also estimated with Huawei's file in its place (a reserve of HUAWEI_SDK bytes, size unknown).
+// (measured 1.22–1.26 with DevEco 6.1; 1.3 keeps a margin). Huawei's wearengine.js is already plain
+// JS: it compiles to about its size without comments (×1.0). The bundle holding the Wear Engine stub is
+// also estimated with Huawei's file in its place (HUAWEI_SDK: its size without comments, measured).
 const STUB = join(JS_ROOT, 'common/services/wearengine.js');
 const RATIO = 1.3;
-const HUAWEI_SDK = 12 * KB;
+/** Huawei's lite wearengine.js 5.0.2.306 without comments: 14 951 B (17 576 raw); app.js compiled with it: 46 663 B. */
+const HUAWEI_SDK = 15 * KB;
 /** Modules of the app-level core (app.js bundle): a page importing one would carry it twice. */
 const CORE_ONLY = ['common/logic/session.js', 'common/logic/protocol.js', 'common/logic/cache.js', 'common/app/core.js',
   'common/services/p2pClient.js', 'common/services/haRepository.js', 'common/services/wearengine.js',
@@ -86,12 +89,12 @@ for (const b of bundles) {
     for (const f of b.entries) localImports(f, withoutStub, STUB);
     const stubOnly = [...seen].filter((f) => !withoutStub.has(f));
     const isDemo = readFileSync(STUB, 'utf8').includes('P2pClient.isStub = true');
-    const sdk = isDemo ? HUAWEI_SDK : rawOf([STUB]);
+    const sdk = isDemo ? HUAWEI_SDK : codeOf([STUB]);
     const onWatch = Math.round(codeOf(withoutStub) * RATIO) + sdk;
     note = isDemo
-      ? ` · on the watch, with Huawei's wearengine.js (reserve ${fmt(HUAWEI_SDK)}) instead of the stub + demo (${stubOnly.map((f) => relative(JS_ROOT, f)).join(', ')}): ~${fmt(onWatch)}`
-      : ` · with Huawei's wearengine.js (${fmt(sdk)} raw)`;
-    estimate = Math.max(estimate, onWatch);
+      ? ` · on the watch, with Huawei's wearengine.js (${fmt(HUAWEI_SDK)}) instead of the stub + demo (${stubOnly.map((f) => relative(JS_ROOT, f)).join(', ')}): ~${fmt(onWatch)}`
+      : ` · including Huawei's wearengine.js (${fmt(sdk)} without comments, counted ×1)`;
+    estimate = isDemo ? Math.max(estimate, onWatch) : onWatch;
   }
   if (b.page) {
     for (const f of seen) if (CORE_ONLY.includes(f)) errors.push(`${b.name} imports ${relative(JS_ROOT, f)}: core modules belong to the app.js bundle (common/app/core.js), the page reaches them through getCore()`);
@@ -162,8 +165,20 @@ for (const f of files.filter((x) => x.endsWith('.hml'))) {
 
 // ---- 5. No signing material committed -----------------------------------------------------------
 const profile = readFileSync(join(APP, 'build-profile.json5'), 'utf8');
+/** Whether git ignores local edits of the file (`git update-index --skip-worktree`, README § Signature). */
+function skipWorktree(file) {
+  try {
+    return execFileSync('git', ['ls-files', '-v', '--', file], { cwd: APP, encoding: 'utf8' }).startsWith('S ');
+  } catch {
+    return false; // no git: stay strict
+  }
+}
 if (!/"signingConfigs"\s*:\s*\[\s*\]/.test(profile) || /"?\b(storeFile|storePassword|keyPassword|certpath|profile)\b"?\s*:/.test(profile)) {
-  errors.push('build-profile.json5 contains signing material: keep it local (see apps/watch-lite/README.md § Signature)');
+  if (skipWorktree('build-profile.json5')) {
+    console.log('\nSigning: build-profile.json5 holds your local signing config; git ignores it (skip-worktree): ok');
+  } else {
+    errors.push('build-profile.json5 contains signing material: keep it local (see apps/watch-lite/README.md § Signature)');
+  }
 }
 
 console.log('');
