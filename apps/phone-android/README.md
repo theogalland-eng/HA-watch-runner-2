@@ -22,13 +22,38 @@ Redmi Note 13 Pro+ (HyperOS).
 
 | What | Value | Where it is set |
 |------|-------|-----------------|
-| Companion package (`applicationId`) | `io.github.theogallandeng.hawatch.companion` | `app/build.gradle.kts` |
+| Companion package (`applicationId`) | `io.github.theogallandeng.hawatchcompanion` (the package registered with Huawei; the Kotlin namespace stays `io.github.theogallandeng.hawatch.companion`) | `app/build.gradle.kts` |
+| AppGallery Connect app ID | **placeholder** | `hmsAppId` (Gradle property) |
 | Watch app bundle (lite, GT Runner 2) | `io.github.theogallandeng.hawatch` | `watchPeerPkg` (Gradle property) |
-| Watch app signing fingerprint | **placeholder** | `watchPeerFingerprint` (Gradle property) |
+| Watch app fingerprint (`<watch bundle>_<base64 of its public key>`) | **placeholder** | `watchPeerFingerprint` (Gradle property) |
 
 The watch side declares this companion in `supportLists`
 ([apps/watch-lite/README.md](../watch-lite/README.md#identifiers)). Until `watchPeerFingerprint`
 holds the watch app's fingerprint, the two sides do not recognize each other.
+
+**The package must be exactly the one registered in AppGallery Connect** (and in the Wear Engine
+application), and **`hmsAppId` must hold its app ID** (manifest `com.huawei.hms.client.appid`). Without
+the app ID, Huawei Health cannot identify the app: every Wear Engine call (e.g. `getBondedDevices`)
+fails with **12** (`ERROR_CODE_INTERNAL_ERROR`). `agconnect-services.json` and Huawei's `agcp` plugin
+are not needed: the app ID is enough (keep that file out of git, it holds keys).
+
+**Watch app fingerprint** ([Huawei: Obtaining a Signing Certificate Fingerprint on the Wearable
+Device](https://developer.huawei.com/consumer/en/doc/connectivity-Guides/signature-0000001053969657)):
+`<watch bundle>_<base64(public key)>`, at most 127 characters. The public key is the raw key of the
+watch debug/release certificate (`.cer` from AppGallery Connect, last certificate of the chain, the one
+issued to you): for an EC P-256 key, the 65-byte point `04…`, so base64 starting with `B`. With OpenSSL:
+
+```bash
+# last certificate of the chain = yours (check its subject); then its public key as a raw point
+openssl x509 -in yours.pem -noout -pubkey | openssl pkey -pubin -outform DER | tail -c 65 | base64 -w0
+```
+
+Prefix the result with `io.github.theogallandeng.hawatch_` and put it in `local.properties`:
+
+```properties
+watchPeerFingerprint=io.github.theogallandeng.hawatch_B...=
+hmsAppId=<AppGallery Connect app ID>
+```
 
 ## Layout
 
@@ -135,10 +160,11 @@ Then run `./gradlew :app:assembleRelease`. To read the SHA-256:
 
 1. Install **Huawei Health** (Huawei Santé) on the phone, sign in, and pair the watch.
 2. On **HUAWEI Developers**, apply for the **Wear Engine** service for the package
-   `io.github.theogallandeng.hawatch.companion`, with the SHA-256 of your signing certificate.
+   `io.github.theogallandeng.hawatchcompanion` (exactly the AppGallery Connect package), with the SHA-256 of your signing certificate,
+   and put the app's AppGallery Connect **app ID** in `hmsAppId`.
    Follow Huawei's Wear Engine documentation for the current console steps. Without it, Wear Engine
    calls fail (for example with codes 8 or 9, unauthorized).
-3. Sign the watch app (phase 3) and put its fingerprint in `watchPeerFingerprint`.
+3. Sign the watch app and put its fingerprint in `watchPeerFingerprint` (format above).
 
 ## Install
 
@@ -187,6 +213,8 @@ The app's **HyperOS / MIUI** section has buttons that open both apps' settings p
 - **Wear Engine codes** (`WearEngineErrorCode`):
   - `2`: Huawei Health is not installed.
   - `8` / `9`: not authorized (Huawei registration or user consent).
+  - `12`: internal error; seen when the app ID (`hmsAppId`) is missing or the package is not the
+    one registered in AppGallery Connect.
   - `15`: Huawei Health is not allowed to autostart.
   - `16`: the watch is not connected.
   - `206`: the message could not be delivered.

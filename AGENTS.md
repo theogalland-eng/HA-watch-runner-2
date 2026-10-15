@@ -40,7 +40,7 @@ The maintainer of this fork runs:
 | App | Package / bundle | Status |
 |-----|------------------|--------|
 | Watch (`apps/watch-lite/`) | `io.github.theogallandeng.hawatch` | Done: protocol v2, P2P client, file cache, app-level core in app.js (two bundles under 48 KB); `supportLists` = companion **debug** fingerprint. Demo stub until Huawei's `wearengine.js` is copied in |
-| Companion (`apps/phone-android/`) | `io.github.theogallandeng.hawatch.companion` | Done |
+| Companion (`apps/phone-android/`) | `io.github.theogallandeng.hawatchcompanion` (Kotlin namespace `io.github.theogallandeng.hawatch.companion`) | Done; needs `hmsAppId` + `watchPeerFingerprint` in `local.properties` |
 
 Still to do:
 - **Watch SDK:** Huawei's lite `wearengine.js` is not in git. Copy it over the stub for a watch build
@@ -194,7 +194,7 @@ shaped this way: [ADR-0001](docs/adr/0001-clean-architecture-layering.md)..[0004
 
 ## Phone companion (`apps/phone-android/`)
 
-Kotlin + Jetpack Compose, minSdk 26 / targetSdk 35. Package `io.github.theogallandeng.hawatch.companion`.
+Kotlin + Jetpack Compose, minSdk 26 / targetSdk 35. Package (`applicationId`) `io.github.theogallandeng.hawatchcompanion`, the one registered with Huawei; Kotlin namespace `io.github.theogallandeng.hawatch.companion`.
 Open `apps/phone-android/` in Android Studio. Full guide: [its README](apps/phone-android/README.md).
 Decision record: [ADR-0007](docs/adr/0007-android-companion-on-demand.md).
 

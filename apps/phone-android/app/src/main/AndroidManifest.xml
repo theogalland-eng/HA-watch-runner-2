@@ -31,6 +31,12 @@
         android:usesCleartextTraffic="false"
         tools:targetApi="35">
 
+        <!-- AppGallery Connect app ID (local.properties: hmsAppId). Without it, Huawei Health cannot
+             identify the app and Wear Engine calls fail with 12 (internal error). -->
+        <meta-data
+            android:name="com.huawei.hms.client.appid"
+            android:value="appid=${hmsAppId}" />
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"

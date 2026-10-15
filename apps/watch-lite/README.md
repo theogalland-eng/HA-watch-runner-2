@@ -128,15 +128,22 @@ it but logs `File exceeds size limit but allowed on simulator` in `previewer.log
 
 - `npm run check` estimates each bundle (`app.js` and each page, with their local imports) at
   1.3 × the sources without comments (measured ratio 1.22–1.26) and **fails above 48 KB**, warns
-  above 44 KB. The `app.js` bundle is also estimated with Huawei's `wearengine.js` in place of the stub
-  and its demo data (a 12 KB reserve while its size is unknown).
+  above 44 KB. Huawei's `wearengine.js` is already plain JS and counts ×1 (its size without comments).
+  In demo mode, the `app.js` bundle is also estimated with Huawei's file in place of the stub and its
+  demo data (15 KB: SDK 5.0.2.306 is 14 951 bytes without comments, 17 576 raw).
 - When DevEco has built the HAP, `npm run check` also prints the **real** compiled bundles from
   `entry/build/default/intermediates/loader_out_lite/default/js/MainAbility/` (`app.js`,
   `pages/index/index.js`) and fails above 48 KB; `LITE_BUNDLE_DIR=<dir> npm run check` points it at
   another build output.
 
 Measured on this version (DevEco 6.1): `app.js` 36 727 bytes and `pages/index/index.js` 38 952 bytes (with the
-stub), versus 60.0 KB for the single page that held everything.
+stub), versus 60.0 KB for the single page that held everything. **With Huawei's `wearengine.js`
+5.0.2.306: `app.js` 46 663 bytes** (limit 49 152): about 2.5 KB of margin, so keep new code out of the
+app.js bundle or trim it first.
+
+`npm run check` does not fail on a local signing config in `build-profile.json5` when git ignores it
+(`skip-worktree`, [Signature](#signature-local-only-never-committed)); the tests check the committed
+version.
 
 ## Watch test
 
@@ -169,7 +176,7 @@ platform (each with an alternative).
 | | Value | Where |
 |---|---|---|
 | Watch bundle | `io.github.theogallandeng.hawatch` | `entry/src/main/config.json` → `app.bundleName` |
-| Companion allowed to talk to the watch | `io.github.theogallandeng.hawatch.companion` + the SHA-256 of its signing certificate, without colons | `config.json` → `module.metaData.customizeData` → `supportLists` |
+| Companion allowed to talk to the watch | `io.github.theogallandeng.hawatchcompanion` + the SHA-256 of its signing certificate, without colons | `config.json` → `module.metaData.customizeData` → `supportLists` |
 
 `supportLists` currently holds the companion's **debug** fingerprint
 (`0086FAF4…D29667`). **Replace it when the companion is signed with a release key**: the value is
